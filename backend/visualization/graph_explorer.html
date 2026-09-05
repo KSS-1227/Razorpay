@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> MMGraphRAG</title>
+    <title>MMGraphRAG</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
@@ -351,43 +351,43 @@
 <body>
     <div class="container">
         <header>
-            <h1>知识图谱可视化</h1>
+            <h1>Knowledge Graph Visualization</h1>
         </header>
 
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-value" id="stat-nodes">-</div>
-                <div class="stat-label">节点数</div>
+                <div class="stat-label">Nodes</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" id="stat-edges">-</div>
-                <div class="stat-label">边数</div>
+                <div class="stat-label">Edges</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" id="stat-types">-</div>
-                <div class="stat-label">实体类型</div>
+                <div class="stat-label">Entity Types</div>
             </div>
         </div>
 
         <div class="toolbar">
             <div class="search-box">
                 <span class="search-icon">🔍</span>
-                <input type="text" class="search-input" id="search-input" placeholder="搜索节点...">
+                <input type="text" class="search-input" id="search-input" placeholder="Search nodes...">
                 <div class="search-results" id="search-results"></div>
             </div>
             <div class="search-box" style="flex: 2;">
                 <span class="search-icon">💡</span>
-                <input type="text" class="search-input" id="retrieve-input" placeholder="输入问题进行检索，高亮相关子图..."
+                <input type="text" class="search-input" id="retrieve-input" placeholder="Enter question to retrieve & highlight relevant subgraph..."
                     style="padding-left: 40px;">
                 <button id="retrieve-btn"
-                    style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); padding: 6px 16px; background: var(--gradient-primary); border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 12px;">检索</button>
+                    style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); padding: 6px 16px; background: var(--gradient-primary); border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 12px;">Retrieve</button>
             </div>
             <label class="checkbox-label">
                 <input type="checkbox" id="show-labels" checked>
-                显示节点名称
+                Show Node Labels
             </label>
             <button id="clear-retrieve-btn"
-                style="padding: 8px 16px; background: transparent; border: 1px solid var(--border-subtle); border-radius: 8px; color: var(--text-secondary); cursor: pointer; font-size: 12px; display: none;">清除高亮</button>
+                style="padding: 8px 16px; background: transparent; border: 1px solid var(--border-subtle); border-radius: 8px; color: var(--text-secondary); cursor: pointer; font-size: 12px; display: none;">Clear Highlights</button>
         </div>
 
         <div class="main-content">
@@ -395,26 +395,26 @@
                 <div id="graph-canvas"></div>
                 <div class="graph-loading" id="graph-loading">
                     <div class="spinner"></div>
-                    <div>正在加载知识图谱...</div>
+                    <div>Loading Knowledge Graph...</div>
                 </div>
                 <div class="graph-controls">
-                    <button class="control-btn" id="zoom-in" title="放大">+</button>
-                    <button class="control-btn" id="zoom-out" title="缩小">−</button>
-                    <button class="control-btn" id="zoom-reset" title="重置">⟲</button>
+                    <button class="control-btn" id="zoom-in" title="Zoom in">+</button>
+                    <button class="control-btn" id="zoom-out" title="Zoom out">−</button>
+                    <button class="control-btn" id="zoom-reset" title="Reset zoom">⟲</button>
                 </div>
             </div>
 
             <div class="side-panel">
                 <div class="panel-section">
-                    <div class="panel-title">实体类型图例</div>
+                    <div class="panel-title">Entity Types Legend</div>
                     <div class="legend-list" id="legend-list">
-                        <div style="color: var(--text-tertiary);">加载中...</div>
+                        <div style="color: var(--text-tertiary);">Loading...</div>
                     </div>
                 </div>
                 <div class="panel-section detail-panel">
-                    <div class="panel-title">详情</div>
+                    <div class="panel-title">Details</div>
                     <div class="detail-content" id="detail-content">
-                        <div style="color: var(--text-tertiary);">点击节点或边查看详情</div>
+                        <div style="color: var(--text-tertiary);">Click a node or edge to view details</div>
                     </div>
                 </div>
             </div>
@@ -422,7 +422,7 @@
     </div>
 
     <script>
-        // === 颜色配置 ===
+        // === Color Configuration ===
         const typeColors = {
             'PERSON': '#f472b6', 'TECHNOLOGY': '#60a5fa', 'EVENT': '#34d399',
             'ORGANIZATION': '#fbbf24', 'GEO': '#a78bfa', 'CONCEPT': '#fb923c',
@@ -437,7 +437,7 @@
             '#14b8a6', '#22d3ee', '#c084fc', '#4ade80', '#818cf8', '#fb7185'
         ];
 
-        // === 全局状态 ===
+        // === Global State ===
         let graphData = null;
         let sigmaInstance = null;
         let graph = null;
@@ -446,7 +446,7 @@
         let hiddenTypes = new Set();
         let colorIndex = 0;
 
-        // === 工具函数 ===
+        // === Utility Functions ===
         function getTypeColor(type) {
             if (typeColors[type]) return typeColors[type];
             const color = colorPalette[colorIndex % colorPalette.length];
@@ -459,7 +459,7 @@
             return id.replace(/^["']|["']$/g, '');
         }
 
-        // === 图谱加载 ===
+        // === Graph Loading ===
         async function loadGraph() {
             const loading = document.getElementById('graph-loading');
             loading.style.display = 'block';
@@ -479,11 +479,11 @@
                     loading.innerHTML = `<div>❌ ${data.error}</div>`;
                 }
             } catch (error) {
-                loading.innerHTML = `<div>❌ 加载失败: ${error.message}</div>`;
+                loading.innerHTML = `<div>❌ Loading failed: ${error.message}</div>`;
             }
         }
 
-        // === 图谱渲染 ===
+        // === Graph Rendering ===
         function renderGraph(data) {
             const container = document.getElementById('graph-canvas');
             const loading = document.getElementById('graph-loading');
@@ -495,10 +495,10 @@
 
             graph = new graphology.Graph();
 
-            // 布局参数
+            // Layout parameters
             const nodeCount = data.nodes.length;
 
-            // 动态计算大小
+            // Dynamic size calculation
             let nodeSize, edgeSize;
             if (nodeCount < 100) {
                 nodeSize = 8;
@@ -516,7 +516,7 @@
 
             const radius = Math.sqrt(nodeCount) * 30;
 
-            // 添加节点
+            // Add nodes
             data.nodes.forEach((node, i) => {
                 const angle = (i / nodeCount) * Math.PI * 2;
                 const r = radius * (0.3 + Math.random() * 0.7);
@@ -527,7 +527,7 @@
                     x: r * Math.cos(angle) + (Math.random() - 0.5) * 50,
                     y: r * Math.sin(angle) + (Math.random() - 0.5) * 50,
                     size: nodeSize,
-                    originalSize: nodeSize, // 保存原始大小
+                    originalSize: nodeSize, // Save original size
                     color: color,
                     originalColor: color,
                     label: cleanNodeId(node.id),
@@ -536,7 +536,7 @@
                 });
             });
 
-            // 添加边
+            // Add edges
             data.edges.forEach((edge, i) => {
                 if (graph.hasNode(edge.source) && graph.hasNode(edge.target)) {
                     try {
@@ -557,7 +557,7 @@
 
             loading.style.display = 'none';
 
-            // 创建 Sigma 实例
+            // Create Sigma instance
             const showLabels = document.getElementById('show-labels').checked && nodeCount < 500;
             if (nodeCount >= 500) {
                 document.getElementById('show-labels').checked = false;
@@ -574,12 +574,12 @@
                 labelColor: { attribute: 'color' }
             });
 
-            // 节点点击
+            // Node click
             sigmaInstance.on('clickNode', (event) => {
                 selectNode(event.node);
             });
 
-            // 边点击
+            // Edge click
             sigmaInstance.on('clickEdge', (event) => {
                 clearSelection();
                 const edgeId = event.edge;
@@ -591,27 +591,27 @@
                 showEdgeDetail(source, target, attrs);
             });
 
-            // 点击空白
+            // Canvas click
             sigmaInstance.on('clickStage', () => {
                 clearSelection();
             });
         }
 
-        // === 选中节点 ===
+        // === Select Node ===
         function selectNode(nodeId) {
             clearSelection();
 
             selectedNode = nodeId;
             const attrs = graph.getNodeAttributes(nodeId);
 
-            // 获取相连节点
+            // Get connected nodes
             const connectedNodes = new Set([nodeId]);
             graph.forEachEdge(nodeId, (edge, attrs, source, target) => {
                 connectedNodes.add(source);
                 connectedNodes.add(target);
             });
 
-            // 保存原始属性并淡化非相关节点
+            // Save original attributes and dim non-relevant nodes
             graph.forEachNode((nid, nattrs) => {
                 if (!originalNodeAttrs[nid]) {
                     originalNodeAttrs[nid] = {
@@ -626,7 +626,7 @@
                 }
             });
 
-            // 淡化非相关边
+            // Dim non-relevant edges
             graph.forEachEdge((edge, eattrs, source, target) => {
                 if (!connectedNodes.has(source) || !connectedNodes.has(target)) {
                     graph.setEdgeAttribute(edge, 'color', '#2d2644');
@@ -635,12 +635,12 @@
                 }
             });
 
-            // 高亮选中节点
+            // Highlight selected node
             const highlightSize = Math.min(attrs.size * 3, attrs.size + 8);
             graph.setNodeAttribute(nodeId, 'size', highlightSize);
             graph.setNodeAttribute(nodeId, 'zIndex', 1000);
 
-            // 相关节点设置较高 zIndex
+            // Set higher zIndex for connected nodes
             connectedNodes.forEach(nid => {
                 if (nid !== nodeId && graph.hasNode(nid)) {
                     graph.setNodeAttribute(nid, 'zIndex', 500);
@@ -648,7 +648,7 @@
                 }
             });
 
-            // 相关边设置到顶层
+            // Bring connected edges to front
             graph.forEachEdge(nodeId, (edge) => {
                 graph.setEdgeAttribute(edge, 'zIndex', 500);
             });
@@ -657,7 +657,7 @@
             showNodeDetail(nodeId, attrs);
         }
 
-        // === 清除选中 ===
+        // === Clear Selection ===
         function clearSelection() {
             if (!graph || !sigmaInstance) return;
 
@@ -688,7 +688,7 @@
             sigmaInstance.refresh();
         }
 
-        // === 渲染图例 ===
+        // === Render Legend ===
         function renderLegend(entityTypes) {
             const container = document.getElementById('legend-list');
             const sortedTypes = Object.entries(entityTypes).sort((a, b) => b[1] - a[1]);
@@ -698,14 +698,14 @@
                 const color = isHidden ? '#666666' : getTypeColor(type);
                 return `
                     <div class="legend-item" data-type="${type}">
-                        <div class="legend-color" style="background: ${color}; opacity: ${isHidden ? 0.5 : 1};" title="点击显示/隐藏"></div>
+                        <div class="legend-color" style="background: ${color}; opacity: ${isHidden ? 0.5 : 1};" title="Click to toggle visibility"></div>
                         <span style="opacity: ${isHidden ? 0.5 : 1};">${type}</span>
                         <span class="legend-count">${count}</span>
                     </div>
                 `;
             }).join('');
 
-            // 添加点击事件
+            // Add click handlers
             container.querySelectorAll('.legend-color').forEach(el => {
                 el.addEventListener('click', () => {
                     const type = el.parentElement.dataset.type;
@@ -714,7 +714,7 @@
             });
         }
 
-        // === 切换类型可见性 ===
+        // === Toggle Type Visibility ===
         function toggleTypeVisibility(type) {
             if (hiddenTypes.has(type)) {
                 hiddenTypes.delete(type);
@@ -743,45 +743,45 @@
             }
         }
 
-        // === 显示节点详情 ===
+        // === Show Node Details ===
         function showNodeDetail(nodeId, attrs) {
             const container = document.getElementById('detail-content');
             container.innerHTML = `
                 <div class="detail-field">
-                    <div class="detail-label">节点ID</div>
+                    <div class="detail-label">Node ID</div>
                     <div class="detail-value">${cleanNodeId(nodeId)}</div>
                 </div>
                 <div class="detail-field">
-                    <div class="detail-label">实体类型</div>
+                    <div class="detail-label">Entity Type</div>
                     <div class="detail-value">
                         <span class="entity-type-badge" style="background: ${getTypeColor(attrs.entityType)}; color: white;">
-                            ${attrs.entityType || '未知'}
+                            ${attrs.entityType || 'Unknown'}
                         </span>
                     </div>
                 </div>
                 <div class="detail-field">
-                    <div class="detail-label">描述</div>
-                    <div class="detail-value">${attrs.description || '无描述'}</div>
+                    <div class="detail-label">Description</div>
+                    <div class="detail-value">${attrs.description || 'No description'}</div>
                 </div>
             `;
         }
 
-        // === 显示边详情 ===
+        // === Show Edge Details ===
         function showEdgeDetail(source, target, attrs) {
             const container = document.getElementById('detail-content');
             container.innerHTML = `
                 <div class="detail-field">
-                    <div class="detail-label">关系</div>
+                    <div class="detail-label">Relationship</div>
                     <div class="detail-value">${cleanNodeId(source)} — ${cleanNodeId(target)}</div>
                 </div>
                 <div class="detail-field">
-                    <div class="detail-label">描述</div>
-                    <div class="detail-value">${attrs.description || '无描述'}</div>
+                    <div class="detail-label">Description</div>
+                    <div class="detail-value">${attrs.description || 'No description'}</div>
                 </div>
             `;
         }
 
-        // === 搜索功能 ===
+        // === Search Functionality ===
         let searchTimeout;
 
         async function handleSearch(query) {
@@ -819,15 +819,15 @@
 
                     resultsContainer.classList.add('show');
                 } else {
-                    resultsContainer.innerHTML = '<div class="search-result-item">未找到匹配结果</div>';
+                    resultsContainer.innerHTML = '<div class="search-result-item">No matching results found</div>';
                     resultsContainer.classList.add('show');
                 }
             } catch (error) {
-                console.error('搜索失败:', error);
+                console.error('Search failed:', error);
             }
         }
 
-        // === 聚焦节点 ===
+        // === Focus Node ===
         function focusNode(nodeId) {
             if (!sigmaInstance || !graph.hasNode(nodeId)) return;
 
@@ -840,31 +840,31 @@
             }
         }
 
-        // === 初始化 ===
+        // === Initialization ===
         document.addEventListener('DOMContentLoaded', () => {
             loadGraph();
 
-            // 搜索
+            // Search
             document.getElementById('search-input').addEventListener('input', (e) => {
                 clearTimeout(searchTimeout);
                 searchTimeout = setTimeout(() => handleSearch(e.target.value), 300);
             });
 
-            // 点击其他地方关闭搜索
+            // Click outside to close search
             document.addEventListener('click', (e) => {
                 if (!e.target.closest('.search-box')) {
                     document.getElementById('search-results').classList.remove('show');
                 }
             });
 
-            // 显示标签开关
+            // Show labels toggle
             document.getElementById('show-labels').addEventListener('change', (e) => {
                 if (sigmaInstance) {
                     sigmaInstance.setSetting('renderLabels', e.target.checked);
                 }
             });
 
-            // 缩放控制
+            // Zoom controls
             document.getElementById('zoom-in').addEventListener('click', () => {
                 if (sigmaInstance) {
                     const camera = sigmaInstance.getCamera();
@@ -886,7 +886,7 @@
                 }
             });
 
-            // === 检索功能 ===
+            // === Retrieval Functionality ===
             const retrieveInput = document.getElementById('retrieve-input');
             const retrieveBtn = document.getElementById('retrieve-btn');
             const clearRetrieveBtn = document.getElementById('clear-retrieve-btn');
@@ -895,7 +895,7 @@
                 const query = retrieveInput.value.trim();
                 if (!query) return;
 
-                retrieveBtn.textContent = '检索中...';
+                retrieveBtn.textContent = 'Retrieving...';
                 retrieveBtn.disabled = true;
 
                 try {
@@ -906,30 +906,30 @@
                         highlightSubgraph(data.nodes, data.edges || [], data.scores || {});
                         clearRetrieveBtn.style.display = 'block';
 
-                        // 显示检索结果信息
+                        // Display retrieval result info
                         document.getElementById('detail-content').innerHTML = `
                             <div class="detail-field">
-                                <div class="detail-label">检索结果</div>
-                                <div class="detail-value">找到 ${data.nodes.length} 个相关节点</div>
+                                <div class="detail-label">Retrieval Results</div>
+                                <div class="detail-value">Found ${data.nodes.length} relevant node(s)</div>
                             </div>
                             <div class="detail-field">
-                                <div class="detail-label">查询</div>
+                                <div class="detail-label">Query</div>
                                 <div class="detail-value">${query}</div>
                             </div>
                         `;
                     } else {
-                        alert(data.message || data.error || '未找到相关节点');
+                        alert(data.message || data.error || 'No relevant nodes found');
                     }
                 } catch (error) {
-                    console.error('检索失败:', error);
-                    alert('检索失败: ' + error.message);
+                    console.error('Retrieval failed:', error);
+                    alert('Retrieval failed: ' + error.message);
                 } finally {
-                    retrieveBtn.textContent = '检索';
+                    retrieveBtn.textContent = 'Retrieve';
                     retrieveBtn.disabled = false;
                 }
             }
 
-            // 高亮子图
+            // Highlight subgraph
             function highlightSubgraph(nodeIds, edges, scores) {
                 if (!graph || !sigmaInstance) return;
 
@@ -939,7 +939,7 @@
 
                 let matchedCount = 0;
 
-                // 保存原始属性并淡化所有节点
+                // Save original attributes and dim all nodes
                 graph.forEachNode((nodeId, attrs) => {
                     if (!originalNodeAttrs[nodeId]) {
                         originalNodeAttrs[nodeId] = {
@@ -951,16 +951,16 @@
 
                     if (nodeSet.has(nodeId)) {
                         matchedCount++;
-                        // 检索到的节点：高亮、放大，保持原色（与选中逻辑一致）
+                        // Retrieved nodes: highlight, enlarge, keep original color
                         const highlightSize = Math.max((attrs.originalSize || attrs.size) * 2, 10);
                         graph.setNodeAttribute(nodeId, 'size', highlightSize);
-                        // 使用保存的原始颜色，如果没有则使用当前属性中的 color 或 originalColor
+                        // Use saved original color
                         const originalColor = originalNodeAttrs[nodeId]?.color || attrs.originalColor || attrs.color;
                         graph.setNodeAttribute(nodeId, 'color', originalColor);
                         graph.setNodeAttribute(nodeId, 'zIndex', 1000);
                         graph.setNodeAttribute(nodeId, 'label', cleanNodeId(nodeId));
                     } else {
-                        // 其他节点：淡化
+                        // Other nodes: dim
                         graph.setNodeAttribute(nodeId, 'color', '#3d3654');
                         graph.setNodeAttribute(nodeId, 'label', '');
                         graph.setNodeAttribute(nodeId, 'zIndex', 0);
@@ -969,16 +969,16 @@
 
                 console.log("Matched nodes:", matchedCount, "of", nodeIds.length);
 
-                // 淡化/高亮边
+                // Dim/highlight edges
                 graph.forEachEdge((edgeId, attrs, source, target) => {
                     if (nodeSet.has(source) && nodeSet.has(target)) {
-                        // 两端都在结果中的边：高亮
+                        // Edges with both endpoints in results: highlight
                         const sourceColor = originalNodeAttrs[source]?.color || attrs.originalColor;
                         graph.setEdgeAttribute(edgeId, 'color', sourceColor || '#a78bfa');
                         graph.setEdgeAttribute(edgeId, 'size', 3);
                         graph.setEdgeAttribute(edgeId, 'zIndex', 500);
                     } else {
-                        // 其他边：淡化
+                        // Other edges: dim
                         graph.setEdgeAttribute(edgeId, 'color', '#2d2644');
                         graph.setEdgeAttribute(edgeId, 'size', 0.5);
                         graph.setEdgeAttribute(edgeId, 'zIndex', 0);
@@ -987,12 +987,12 @@
 
                 sigmaInstance.refresh();
 
-                // 更新详情面板显示匹配情况
+                // Update detail panel with match info
                 if (matchedCount === 0 && nodeIds.length > 0) {
                     document.getElementById('detail-content').innerHTML += `
                         <div class="detail-field" style="color: #fbbf24;">
-                            <div class="detail-label">警告</div>
-                            <div class="detail-value">节点ID格式可能不匹配，请检查控制台日志</div>
+                            <div class="detail-label">Warning</div>
+                            <div class="detail-value">Node ID format may not match, please check console logs</div>
                         </div>
                     `;
                 }
@@ -1008,7 +1008,7 @@
                 clearRetrieveBtn.style.display = 'none';
                 retrieveInput.value = '';
                 document.getElementById('detail-content').innerHTML =
-                    '<div style="color: var(--text-tertiary);">点击节点或边查看详情</div>';
+                    '<div style="color: var(--text-tertiary);">Click a node or edge to view details</div>';
             });
         });
     </script>
