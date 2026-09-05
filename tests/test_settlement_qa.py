@@ -246,6 +246,8 @@ def _make_settlement_app(fake_query_fn):
     from backend.auth.middleware.jwt_middleware import AuthContext
 
     instance = MagicMock()
+    # Use AsyncMock with spec=None so it accepts any kwargs including
+    # system_prompt_addendum without raising TypeError.
     instance.query = AsyncMock(side_effect=fake_query_fn)
 
     with patch.object(mod, "_verify_case_ownership", new=AsyncMock()), \
@@ -264,7 +266,7 @@ class TestSettlementQARoute:
 
     def test_correct_path_resolves(self):
         """POST /api/workspace/{id}/settlement-qa must return 200, not 404/405."""
-        async def fake_query(question, top_k, session_id):
+        async def fake_query(question, top_k, session_id, system_prompt_addendum=None):
             return {"answer": "STL-2024-0101", "evidence": {}, "citations": [],
                     "processing_time_seconds": 0.1, "graph": {"nodes": 5, "edges": 4}}
 
@@ -277,15 +279,18 @@ class TestSettlementQARoute:
         assert resp.status_code == 200
 
     def test_preamble_prepended_to_question(self):
-        """The question forwarded to svc.query must start with _SETTLEMENT_PREAMBLE."""
+        """The raw question must reach svc.query unmodified; preamble goes via
+        system_prompt_addendum, not concatenated onto the question string."""
         from backend.api.routes.workspace_settlement_qa import _SETTLEMENT_PREAMBLE
 
-        captured: list[str] = []
+        captured_question: list[str] = []
+        captured_addendum: list[str | None] = []
 
-        async def fake_query(question, top_k, session_id):
-            captured.append(question)
-            return {"answer": "ok", "evidence": {}, "citations": [],
-                    "processing_time_seconds": 0.05, "graph": {"nodes": 1, "edges": 0}}
+        async def fake_query(question, top_k, session_id, system_prompt_addendum=None):
+            captured_question.append(question)
+            captured_addendum.append(system_prompt_addendum)
+            return {"answer": "STL-2024-0101", "evidence": {}, "citations": [],
+                    "processing_time_seconds": 0.1, "graph": {"nodes": 5, "edges": 4}}
 
         client, _ = _make_settlement_app(fake_query)
         client.post(
@@ -293,15 +298,20 @@ class TestSettlementQARoute:
             json={"question": "What is the settlement amount?"},
             headers={"Authorization": "Bearer fake"},
         )
-        assert captured, "svc.query was never called"
-        assert captured[0].startswith(_SETTLEMENT_PREAMBLE)
+        assert captured_question, "svc.query was never called"
+        # The question forwarded to the retrieval engine must be the raw text.
+        assert captured_question[0] == "What is the settlement amount?", (
+            f"Question was modified before retrieval: {captured_question[0]!r}"
+        )
+        # The preamble must arrive as the separate addendum, not in the question.
+        assert captured_addendum[0] == _SETTLEMENT_PREAMBLE
 
     def test_non_settlement_question_returns_idk_style_answer(self):
         """When the underlying engine returns an IDK answer for an off-topic question,
         the route must pass it through unchanged — not suppress or replace it."""
         idk_answer = "This question is not about a settlement or payout. I cannot answer it."
 
-        async def fake_query(question, top_k, session_id):
+        async def fake_query(question, top_k, session_id, system_prompt_addendum=None):
             return {"answer": idk_answer, "evidence": {}, "citations": [],
                     "processing_time_seconds": 0.05, "graph": {"nodes": 1, "edges": 0}}
 
@@ -317,7 +327,7 @@ class TestSettlementQARoute:
 
     def test_response_envelope_shape(self):
         """Response must include success, question, case_id, session_id, result."""
-        async def fake_query(question, top_k, session_id):
+        async def fake_query(question, top_k, session_id, system_prompt_addendum=None):
             return {"answer": "processed", "evidence": {}, "citations": [],
                     "processing_time_seconds": 0.05, "graph": {"nodes": 3, "edges": 2}}
 
@@ -336,7 +346,7 @@ class TestSettlementQARoute:
 
     def test_404_when_graph_not_found(self):
         """FileNotFoundError from svc.query must surface as HTTP 404."""
-        async def fake_query(question, top_k, session_id):
+        async def fake_query(question, top_k, session_id, system_prompt_addendum=None):
             raise FileNotFoundError("No graph")
 
         client, _ = _make_settlement_app(fake_query)
@@ -367,38 +377,44 @@ class TestEvalHelpers:
         except Exception:
             self.mod = None
 
-    def test_idk_detection_positive(self):
+    def test_refused_correctly_positive(self):
         if self.mod is None:
             pytest.skip("eval module not importable")
-        assert self.mod._is_idk("I don't know the answer to that question.")
-        assert self.mod._is_idk("This information is not available in the provided data.")
-        assert self.mod._is_idk("Cannot find any settlement matching that description.")
+        assert self.mod.refused_correctly("I don't know the answer to that question.")
+        assert self.mod.refused_correctly("This information is not available in the provided data.")
+        assert self.mod.refused_correctly("Cannot find any settlement matching that description.")
 
-    def test_idk_detection_negative(self):
+    def test_refused_correctly_negative(self):
         if self.mod is None:
             pytest.skip("eval module not importable")
-        assert not self.mod._is_idk("The settlement amount is \u20b995,000.")
-        assert not self.mod._is_idk("STL-2024-0101 was processed on 2024-01-15.")
+        assert not self.mod.refused_correctly("The settlement amount is \u20b995,000.")
+        assert not self.mod.refused_correctly("STL-2024-0101 was processed on 2024-01-15.")
 
-    def test_answer_matches_substring(self):
+    def test_answer_correct_substring(self):
         if self.mod is None:
             pytest.skip("eval module not importable")
-        assert self.mod._answer_matches("The net amount paid was \u20b982,500.", "82500")
-        assert self.mod._answer_matches("Settlement STL-2024-0101 was processed.", "STL-2024-0101")
+        assert self.mod.answer_correct("The net amount paid was \u20b982,500.", ["82500"])
+        assert self.mod.answer_correct("Settlement STL-2024-0101 was processed.", ["STL-2024-0101"])
 
-    def test_answer_no_match(self):
+    def test_answer_correct_all_phrases_required(self):
         if self.mod is None:
             pytest.skip("eval module not importable")
-        assert not self.mod._answer_matches("The amount is \u20b950,000.", "82500")
+        assert self.mod.answer_correct("yes, processed on 2024-02-15", ["yes", "2024-02-15"])
+        assert not self.mod.answer_correct("yes it was processed", ["yes", "2024-02-15"])
 
-    def test_evaluator_url_uses_path_parameter(self):
-        """run_question must build the URL with case_id as a path segment."""
+    def test_answer_correct_no_match(self):
         if self.mod is None:
             pytest.skip("eval module not importable")
-        # Inspect the URL that would be built — no HTTP call needed
+        assert not self.mod.answer_correct("The amount is \u20b950,000.", ["82500"])
+
+    def test_runner_uses_path_param_url_pattern(self):
+        """run_eval must build the service call with case_id as a workspace scope,
+        not embed it in a flat query path."""
+        if self.mod is None:
+            pytest.skip("eval module not importable")
         import inspect
-        src = inspect.getsource(self.mod.run_question)
-        assert "/api/workspace/" in src
-        assert "settlement-qa" in src
-        # The old flat path must not appear
+        src = inspect.getsource(self.mod.run_eval)
+        # WorkspaceDocumentService is constructed with case_id
+        assert "case_id" in src
+        # The old flat settlement-qa path must not appear as a URL
         assert "/api/workspace/settlement-qa/" not in src

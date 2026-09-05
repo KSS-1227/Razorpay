@@ -17,6 +17,7 @@ load_dotenv(override=True)
 
 from backend.api.routes.cases import router as cases_router
 from backend.api.routes.reconciliation import router as reconciliation_router
+from backend.api.routes.tax_matching import router as tax_matching_router
 from backend.api.routes.storage import router as storage_router
 from backend.api.routes.workspace_graph import router as ws_graph_router
 from backend.api.routes.workspace_query import router as ws_query_router
@@ -113,6 +114,11 @@ app.include_router(
 )
 app.include_router(
     reconciliation_router,
+    prefix="/api",
+    dependencies=[Depends(get_current_user)],
+)
+app.include_router(
+    tax_matching_router,
     prefix="/api",
     dependencies=[Depends(get_current_user)],
 )

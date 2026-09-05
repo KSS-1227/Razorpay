@@ -1,234 +1,227 @@
-"""
-Settlement Q&A Evaluation Harness
+"""Evaluation harness for the Settlement Q&A endpoint.
 
-Runs every question in eval/settlement_qa_gold.json through the live
-POST /api/workspace/settlement-qa endpoint and reports:
+Mirrors the structure and CLI conventions of eval/evaluate.py — takes a
+--gold file and a --case-id, calls WorkspaceDocumentService.query() directly
+(no HTTP client), and reports three independent metrics plus per-failure
+details.
 
-  - answer_match_rate   : fraction of in-batch questions whose answer
-                          contains the expected value (case-insensitive substring)
-  - idk_rate            : fraction of out-of-batch questions where the model
-                          correctly declined to answer (said "don't know" /
-                          "not" / "no information" / "cannot" etc.)
-  - citation_hit_rate   : fraction of in-batch questions where the response
-                          cited the expected source document
-  - overall_score       : simple average of the three rates above
-
-Usage
------
+Usage:
   python eval/evaluate_settlement_qa.py \\
       --gold eval/settlement_qa_gold.json \\
-      --base-url http://localhost:8000 \\
-      --token <JWT> \\
-      --case-id <case_id>
+      --user-id <user_id> \\
+      --case-id <case_id> \\
+      [--top-k 10]
 
-The --token and --case-id flags are required because the endpoint is
-JWT-protected and workspace-scoped.
-
-Output
-------
-Prints a human-readable summary table suitable for a demo.
-Optionally writes raw predictions to --out (default: eval/settlement_qa_pred.json).
+Metrics reported:
+  answer_correct      — all expected_answer_contains phrases found (case-insensitive)
+  citation_correct    — expected_source_file appears in any evidence entity's source_files
+  refused_correctly   — for answerable=false entries, answer contains a refusal signal
 """
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
-import sys
-import time
 from typing import Any
 
-try:
-    import httpx
-except ImportError:
-    print("httpx is required: pip install httpx", file=sys.stderr)
-    sys.exit(1)
+# ---------------------------------------------------------------------------
+# Settlement preamble — must match workspace_settlement_qa.py exactly.
+# Copied here so the eval calls the service the same way the route does,
+# without importing the route module (which pulls in FastAPI app state).
+# ---------------------------------------------------------------------------
+_SETTLEMENT_PREAMBLE = (
+    "You are a settlement and payout analyst. "
+    "Answer using settlement/payout terminology (settlement IDs, payout status, "
+    "fee deductions, UTR numbers, net amounts, processing dates). "
+    "If the question is not about a settlement or payout, say so clearly rather "
+    "than guessing or answering from unrelated context."
+)
 
-# ---------------------------------------------------------------------------
-# IDK detection — conservative list of phrases that indicate the model
-# correctly declined rather than hallucinating an answer.
-# ---------------------------------------------------------------------------
-_IDK_PHRASES = [
+_REFUSAL_SIGNALS = (
     "don't know",
     "do not know",
-    "not available",
-    "no information",
-    "cannot find",
     "not found",
+    "cannot find",
+    "no information",
+    "not available",
     "not in",
-    "not mentioned",
+    "not present",
+    "unable to find",
     "not about a settlement",
-    "not related",
+    "not about",
+    "no record",
     "cannot answer",
-    "unable to",
-    "no data",
-    "not provided",
-]
+    "not mentioned",
+)
 
 
-def _is_idk(answer: str) -> bool:
-    lower = answer.lower()
-    return any(phrase in lower for phrase in _IDK_PHRASES)
+def load(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
-def _answer_matches(answer: str, expected: str) -> bool:
-    """Case-insensitive substring match, normalising whitespace."""
-    return expected.lower().replace(",", "").replace(" ", "") in \
-           answer.lower().replace(",", "").replace(" ", "")
+def answer_correct(answer: str, expected_contains: list[str]) -> bool:
+    """All expected phrases must appear in the answer (case-insensitive)."""
+    if not expected_contains:
+        return True  # answerable=false entries have no expected phrases
+    low = answer.lower()
+    return all(phrase.lower() in low for phrase in expected_contains)
 
 
-def _citation_matches(citations: list[dict], expected_source: str | None) -> bool:
-    if not expected_source:
-        return False
-    for c in citations:
-        src = (c.get("source") or c.get("doc_id") or c.get("file_name") or "").lower()
-        if expected_source.lower() in src or src in expected_source.lower():
-            return True
+def citation_correct(result: dict, expected_source_file: str | None) -> bool:
+    """expected_source_file appears in evidence entities' source_files OR citations list."""
+    if expected_source_file is None:
+        return True  # unanswerable — citation check not applicable
+    needle = expected_source_file.lower()
+    for entity in result.get("evidence", {}).get("entities", []):
+        for sf in entity.get("source_files", []):
+            if needle in sf.lower():
+                return True
+    for citation in result.get("citations", []):
+        for field in ("source_chunk", "excerpt", "description", "entity"):
+            if needle in str(citation.get(field, "")).lower():
+                return True
     return False
 
 
-def run_question(
-    client: httpx.Client,
-    base_url: str,
-    token: str,
-    case_id: str,
-    question: str,
-    top_k: int = 10,
-) -> dict[str, Any]:
-    url = f"{base_url.rstrip('/')}/api/workspace/{case_id}/settlement-qa"
-    payload = {"question": question, "top_k": top_k}
-    headers = {"Authorization": f"Bearer {token}"}
-    try:
-        resp = client.post(url, json=payload, headers=headers, timeout=60)
-        resp.raise_for_status()
-        data = resp.json()
-        result = data.get("result", {})
-        return {
-            "answer": result.get("answer", ""),
-            "citations": result.get("citations", []),
-            "error": None,
-        }
-    except Exception as exc:
-        return {"answer": "", "citations": [], "error": str(exc)}
+def refused_correctly(answer: str) -> bool:
+    """Answer contains at least one refusal signal phrase."""
+    low = answer.lower()
+    return any(signal in low for signal in _REFUSAL_SIGNALS)
 
 
-def evaluate(gold_path: str, base_url: str, token: str, case_id: str, out_path: str) -> None:
-    with open(gold_path, encoding="utf-8") as f:
-        gold = json.load(f)
+async def run_eval(gold_path: str, user_id: str, case_id: str, top_k: int) -> None:
+    from backend.services.workspace_document_service import WorkspaceDocumentService
 
+    gold = load(gold_path)
     questions = gold["questions"]
-    predictions: list[dict] = []
 
-    in_batch   = [q for q in questions if q.get("answer_in_batch", True)]
-    out_batch  = [q for q in questions if not q.get("answer_in_batch", True)]
+    svc = WorkspaceDocumentService(user_id=user_id, case_id=case_id)
 
-    answer_hits   = 0
-    idk_hits      = 0
-    citation_hits = 0
+    results: list[dict[str, Any]] = []
+    total_processing_time = 0.0
 
-    print(f"\n{'='*64}")
-    print(f"  Settlement Q&A Evaluation — {len(questions)} questions")
-    print(f"  Endpoint : {base_url}/api/workspace/{{case_id}}/settlement-qa")
-    print(f"  Case     : {case_id}")
-    print(f"{'='*64}\n")
+    for entry in questions:
+        qid        = entry["id"]
+        question   = entry["question"]
+        answerable = entry["answerable"]
 
-    with httpx.Client() as client:
-        for q in questions:
-            t0 = time.time()
-            pred = run_question(client, base_url, token, case_id, q["question"])
-            elapsed = round(time.time() - t0, 2)
+        try:
+            result = await svc.query(
+                question=question,
+                top_k=top_k,
+                system_prompt_addendum=_SETTLEMENT_PREAMBLE,
+            )
+            answer        = result.get("answer", "")
+            proc_time     = result.get("processing_time_seconds", 0.0)
 
-            answer    = pred["answer"]
-            citations = pred["citations"]
-            error     = pred["error"]
+            a_ok = answer_correct(answer, entry["expected_answer_contains"]) if answerable else None
+            c_ok = citation_correct(result, entry["expected_source_file"])   if answerable else None
+            r_ok = refused_correctly(answer)                                  if not answerable else None
 
-            in_batch_q   = q.get("answer_in_batch", True)
-            idk_expected = q.get("idk_expected", False)
+            results.append({
+                "id":               qid,
+                "question":         question,
+                "answerable":       answerable,
+                "answer":           answer,
+                "answer_correct":   a_ok,
+                "citation_correct": c_ok,
+                "refused_correctly": r_ok,
+                "processing_time":  proc_time,
+                "expected_answer_contains": entry["expected_answer_contains"],
+                "expected_source_file":     entry.get("expected_source_file"),
+            })
+            total_processing_time += proc_time
 
-            answer_match   = False
-            idk_correct    = False
-            citation_match = False
-
-            if error:
-                status = f"ERROR: {error}"
-            elif idk_expected:
-                idk_correct = _is_idk(answer)
-                if idk_correct:
-                    idk_hits += 1
-                status = "IDK ✓" if idk_correct else "IDK ✗ (hallucinated)"
-            else:
-                answer_match = _answer_matches(answer, q["expected_answer"])
-                if answer_match:
-                    answer_hits += 1
-                citation_match = _citation_matches(citations, q.get("expected_source"))
-                if citation_match:
-                    citation_hits += 1
-                status = (
-                    f"{'ANS ✓' if answer_match else 'ANS ✗'} | "
-                    f"{'CITE ✓' if citation_match else 'CITE ✗'}"
-                )
-
-            print(f"[{q['id']}] {q['question'][:72]}")
-            print(f"       Status : {status}  ({elapsed}s)")
-            if not idk_expected:
-                print(f"       Expected: {q['expected_answer']}")
-                snippet = answer[:120].replace("\n", " ")
-                print(f"       Got     : {snippet}{'…' if len(answer) > 120 else ''}")
-            print()
-
-            predictions.append({
-                "id": q["id"],
-                "question": q["question"],
-                "answer": answer,
-                "citations": citations,
-                "answer_match": answer_match,
-                "idk_correct": idk_correct,
-                "citation_match": citation_match,
-                "error": error,
+        except Exception as exc:
+            results.append({
+                "id":               qid,
+                "question":         question,
+                "answerable":       answerable,
+                "answer":           f"ERROR: {exc}",
+                "answer_correct":   False if answerable else None,
+                "citation_correct": False if answerable else None,
+                "refused_correctly": False if not answerable else None,
+                "processing_time":  0.0,
+                "expected_answer_contains": entry["expected_answer_contains"],
+                "expected_source_file":     entry.get("expected_source_file"),
             })
 
-    # ---------------------------------------------------------------------------
-    # Summary
-    # ---------------------------------------------------------------------------
-    n_in  = len(in_batch)
-    n_out = len(out_batch)
+    # ------------------------------------------------------------------
+    # Compute metrics
+    # ------------------------------------------------------------------
+    answerable_results   = [r for r in results if r["answerable"]]
+    unanswerable_results = [r for r in results if not r["answerable"]]
 
-    answer_match_rate = answer_hits / n_in  if n_in  else 0.0
-    idk_rate          = idk_hits    / n_out if n_out else 0.0
-    citation_hit_rate = citation_hits / n_in if n_in else 0.0
-    overall_score     = (answer_match_rate + idk_rate + citation_hit_rate) / 3
+    n_answerable   = len(answerable_results)
+    n_unanswerable = len(unanswerable_results)
 
-    print(f"{'='*64}")
-    print("  SUMMARY")
-    print(f"{'='*64}")
-    print(f"  In-batch questions   : {n_in}")
-    print(f"  Out-of-batch (IDK)   : {n_out}")
+    answer_hits   = sum(1 for r in answerable_results if r["answer_correct"])
+    citation_hits = sum(1 for r in answerable_results if r["citation_correct"])
+    refusal_hits  = sum(1 for r in unanswerable_results if r["refused_correctly"])
+
+    answer_acc   = answer_hits   / n_answerable   if n_answerable   else 0.0
+    citation_acc = citation_hits / n_answerable   if n_answerable   else 0.0
+    refusal_rate = refusal_hits  / n_unanswerable if n_unanswerable else 0.0
+    avg_time     = total_processing_time / len(results) if results else 0.0
+
+    # ------------------------------------------------------------------
+    # Summary table
+    # ------------------------------------------------------------------
+    print("\n=== Settlement Q&A Evaluation ===")
+    print(f"  Gold file          : {gold_path}")
+    print(f"  Case ID            : {case_id}")
+    print(f"  Total questions    : {len(results)}")
+    print(f"  Answerable         : {n_answerable}")
+    print(f"  Unanswerable       : {n_unanswerable}")
     print()
-    print(f"  Answer match rate    : {answer_hits}/{n_in}  = {answer_match_rate:.1%}")
-    print(f"  IDK correct rate     : {idk_hits}/{n_out}  = {idk_rate:.1%}")
-    print(f"  Citation hit rate    : {citation_hits}/{n_in}  = {citation_hit_rate:.1%}")
-    print(f"  ─────────────────────────────────────────")
-    print(f"  Overall score        : {overall_score:.1%}")
-    print(f"{'='*64}\n")
+    print(f"  answer_accuracy    : {answer_acc:.1%}  ({answer_hits}/{n_answerable})")
+    print(f"  citation_accuracy  : {citation_acc:.1%}  ({citation_hits}/{n_answerable})")
+    print(f"  correct_refusal    : {refusal_rate:.1%}  ({refusal_hits}/{n_unanswerable})")
+    print(f"  avg_time_seconds   : {avg_time:.2f}s")
 
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump({"summary": {
-            "answer_match_rate": round(answer_match_rate, 4),
-            "idk_rate": round(idk_rate, 4),
-            "citation_hit_rate": round(citation_hit_rate, 4),
-            "overall_score": round(overall_score, 4),
-        }, "predictions": predictions}, f, indent=2, ensure_ascii=False)
-    print(f"Raw predictions written to: {out_path}")
+    # ------------------------------------------------------------------
+    # Failures — printed so they are debuggable, not just a number
+    # ------------------------------------------------------------------
+    failures = [
+        r for r in results
+        if r["answer_correct"] is False
+        or r["citation_correct"] is False
+        or r["refused_correctly"] is False
+    ]
+
+    if not failures:
+        print("\nAll checks passed.")
+        return
+
+    print(f"\n=== Failures ({len(failures)}) ===")
+    for r in failures:
+        print(f"\n  [{r['id']}] {r['question']}")
+        if r["answerable"]:
+            if not r["answer_correct"]:
+                print(f"    FAIL answer_correct")
+                print(f"      expected_contains : {r['expected_answer_contains']}")
+                print(f"      actual answer     : {r['answer'][:300]}")
+            if not r["citation_correct"]:
+                print(f"    FAIL citation_correct")
+                print(f"      expected_source   : {r['expected_source_file']}")
+        else:
+            if not r["refused_correctly"]:
+                print(f"    FAIL refused_correctly (should have declined)")
+                print(f"      actual answer     : {r['answer'][:300]}")
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Evaluate settlement Q&A endpoint")
-    p.add_argument("--gold",     default="eval/settlement_qa_gold.json")
-    p.add_argument("--base-url", default="http://localhost:8000")
-    p.add_argument("--token",    required=True, help="Supabase JWT bearer token")
-    p.add_argument("--case-id",  required=True, help="Workspace case ID")
-    p.add_argument("--out",      default="eval/settlement_qa_pred.json")
+    p = argparse.ArgumentParser(
+        description="Evaluate the Settlement Q&A service against a gold set."
+    )
+    p.add_argument("--gold",    required=True,  help="Path to settlement_qa_gold.json")
+    p.add_argument("--user-id", required=True,  help="User ID owning the case workspace")
+    p.add_argument("--case-id", required=True,  help="Case ID whose graph will be queried")
+    p.add_argument("--top-k",   type=int, default=10, help="top_k passed to query()")
     args = p.parse_args()
-    evaluate(args.gold, args.base_url, args.token, args.case_id, args.out)
+
+    asyncio.run(run_eval(args.gold, args.user_id, args.case_id, args.top_k))
 
 
 if __name__ == "__main__":

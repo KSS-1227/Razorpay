@@ -28,6 +28,10 @@ Several of the entity types are finance-specific. Extract them as follows:
 - PAYOUT_STATUS: the state of a payout (e.g. "processed", "on hold", "failed")
 - FEE_DEDUCTION: a platform or processing fee subtracted from a settlement (e.g. "Platform fee: ₹2,500")
 - UTR_NUMBER: a bank Unique Transaction Reference number tied to a payout (e.g. "UTR: 407291836540")
+- TAX_LINE_ITEM: a taxed line item on an invoice, with its taxable amount (e.g. "Consulting services: \u20b940,000")
+- GST_NUMBER: a GSTIN tax registration number (e.g. "27AAAPL1234C1Z5")
+- TAX_RATE: the GST/tax rate applied or that should apply (e.g. "18%", "GST @ 18%")
+- HSN_CODE: an HSN/SAC classification code tied to a line item (e.g. "HSN 998314")
 
 2. From the entities identified in step 1, identify all pairs of (source_entity, target_entity) that are *clearly related* to each other.
 For each pair of related entities, extract the following information:
@@ -147,7 +151,7 @@ PROMPTS[
 ] = """It appears some entities may have still been missed.  Answer YES | NO if there are still entities that need to be added.
 """
 
-PROMPTS["DEFAULT_ENTITY_TYPES"] = ["VENDOR", "INVOICE", "INVOICE_AMOUNT", "CONTRACT_AMOUNT", "PAYMENT_TERMS", "DUE_DATE", "APPROVAL_LIMIT", "SETTLEMENT_ID", "SETTLEMENT_DATE", "SETTLEMENT_AMOUNT", "PAYOUT_STATUS", "FEE_DEDUCTION", "UTR_NUMBER", "ORGANIZATION", "PERSON", "LOCATION", "EVENT", "CATEGORY"]
+PROMPTS["DEFAULT_ENTITY_TYPES"] = ["VENDOR", "INVOICE", "INVOICE_AMOUNT", "CONTRACT_AMOUNT", "PAYMENT_TERMS", "DUE_DATE", "APPROVAL_LIMIT", "SETTLEMENT_ID", "SETTLEMENT_DATE", "SETTLEMENT_AMOUNT", "PAYOUT_STATUS", "FEE_DEDUCTION", "UTR_NUMBER", "TAX_LINE_ITEM", "GST_NUMBER", "TAX_RATE", "HSN_CODE", "ORGANIZATION", "PERSON", "LOCATION", "EVENT", "CATEGORY"]
 PROMPTS["DEFAULT_TUPLE_DELIMITER"] = "<|>"
 PROMPTS["DEFAULT_RECORD_DELIMITER"] = "##"
 PROMPTS["DEFAULT_COMPLETION_DELIMITER"] = "<|COMPLETE|>"

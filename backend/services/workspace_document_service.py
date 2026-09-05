@@ -140,6 +140,7 @@ class WorkspaceDocumentService:
         question: str,
         top_k: int = 10,
         session_id: str | None = None,
+        system_prompt_addendum: str | None = None,
     ) -> dict:
         """Run a GraphRAG query scoped to this user's workspace.
 
@@ -203,7 +204,8 @@ class WorkspaceDocumentService:
             number_of_mmentities = QueryParam.number_of_mmentities
             local_max_token_for_text_unit = QueryParam.local_max_token_for_text_unit
 
-        result = await query_engine.query(query_question, param=_Param, return_context=True)
+        result = await query_engine.query(query_question, param=_Param, return_context=True,
+                                           system_prompt_addendum=system_prompt_addendum)
 
         answer            = result["answer"]
         retrieval_context = result["retrieval"]

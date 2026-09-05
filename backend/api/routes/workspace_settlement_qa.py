@@ -9,10 +9,12 @@ Endpoint
 --------
 POST /api/workspace/{id}/settlement-qa
 
-Accepts the same QueryRequest payload as /api/query/.
-Prepends a settlement-domain system-prompt addendum to the question so the
-LLM answers in payout/settlement terminology and declines off-topic questions
-rather than guessing.
+Accepts the same fields as /api/query/'s QueryRequest except case_id, which
+is a path parameter here rather than a body field.
+
+Injects a settlement-domain addendum into the LLM system prompt *after*
+vector retrieval completes, so the raw question text reaches the embedding
+step unmodified.
 
 Returns the same evidence/citation envelope as /api/query/.
 """
@@ -38,16 +40,15 @@ router = APIRouter(
 )
 
 # ---------------------------------------------------------------------------
-# Settlement domain addendum — prepended to every question before retrieval.
-# Kept short so it does not crowd out the actual question in the context window.
+# Settlement domain addendum — injected into the LLM system prompt only,
+# after vector retrieval completes.  The raw question is never modified.
 # ---------------------------------------------------------------------------
 _SETTLEMENT_PREAMBLE = (
     "You are a settlement and payout analyst. "
     "Answer using settlement/payout terminology (settlement IDs, payout status, "
     "fee deductions, UTR numbers, net amounts, processing dates). "
     "If the question is not about a settlement or payout, say so clearly rather "
-    "than guessing or answering from unrelated context. "
-    "Question: "
+    "than guessing or answering from unrelated context."
 )
 
 
@@ -65,9 +66,10 @@ async def settlement_qa(
 ):
     """Run a settlement-domain GraphRAG query against the user's case workspace.
 
-    Identical contract to POST /api/query/ — same response envelope, same
-    evidence/citation structure. The only difference is the domain preamble
-    prepended to the question before it reaches the retrieval engine.
+    Same response envelope and evidence/citation structure as POST /api/query/.
+    case_id is a path parameter here (not a body field). A settlement-domain
+    addendum is injected into the LLM system prompt after retrieval; the
+    question reaches the vector search step unmodified.
     """
     try:
         await _verify_case_ownership(case_id=case_id, user_id=auth.user_id)
@@ -76,11 +78,11 @@ async def settlement_qa(
             case_id=case_id,
         )
         session_id = str(request.session_id or uuid.uuid4())
-        augmented_question = _SETTLEMENT_PREAMBLE + request.question
         result = await svc.query(
-            question=augmented_question,
+            question=request.question,
             top_k=request.top_k,
             session_id=session_id,
+            system_prompt_addendum=_SETTLEMENT_PREAMBLE,
         )
         return {
             "success": True,

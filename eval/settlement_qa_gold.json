@@ -1,153 +1,132 @@
 {
-  "_comment": "Synthetic settlement-statement batch: 5 vendors, 3 settlement cycles (Jan–Mar 2024). Each entry has a question, the expected answer fragment (case-insensitive substring match), the source document/field, and whether the answer is genuinely absent from the batch (for IDK testing).",
+  "_comment": "Synthetic settlement-statement batch: 5 vendors, 3 settlement cycles (Jan–Mar 2024). Source document: settlement_batch_q1.csv. answerable=false entries test that the system declines rather than fabricates.",
   "batch_description": "Settlement batch STL-2024-Q1 covering vendors V001–V005, processed 2024-01-15, 2024-02-15, 2024-03-15.",
   "questions": [
     {
       "id": "sq01",
       "question": "What is the settlement ID for the January 2024 payout to vendor V001?",
-      "expected_answer": "STL-2024-0101",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "settlement_id",
-      "answer_in_batch": true
+      "expected_answer_contains": ["STL-2024-0101"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq02",
       "question": "What was the net settlement amount paid to vendor V002 in February 2024?",
-      "expected_answer": "82500",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "settlement_amount",
-      "answer_in_batch": true
+      "expected_answer_contains": ["82500"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq03",
       "question": "What is the UTR number for the March 2024 settlement to vendor V003?",
-      "expected_answer": "407291836543",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "utr_number",
-      "answer_in_batch": true
+      "expected_answer_contains": ["407291836543"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq04",
       "question": "What fee was deducted from vendor V004's February 2024 settlement?",
-      "expected_answer": "3200",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "fee_deduction",
-      "answer_in_batch": true
+      "expected_answer_contains": ["3200"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq05",
       "question": "What is the payout status for vendor V005's January 2024 settlement?",
-      "expected_answer": "processed",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "payout_status",
-      "answer_in_batch": true
+      "expected_answer_contains": ["processed"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq06",
       "question": "Which vendor had a settlement placed on hold in March 2024?",
-      "expected_answer": "V002",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "payout_status",
-      "answer_in_batch": true
+      "expected_answer_contains": ["V002"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq07",
       "question": "What was the total fee deducted across all January 2024 settlements?",
-      "expected_answer": "13500",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "fee_deduction",
-      "answer_in_batch": true
+      "expected_answer_contains": ["13500"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq08",
       "question": "What is the settlement date for STL-2024-0302?",
-      "expected_answer": "2024-03-15",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "settlement_date",
-      "answer_in_batch": true
+      "expected_answer_contains": ["2024-03-15"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq09",
       "question": "How many settlements in the batch have a failed payout status?",
-      "expected_answer": "2",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "payout_status",
-      "answer_in_batch": true
+      "expected_answer_contains": ["2"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq10",
       "question": "What is the UTR number for settlement STL-2024-0201?",
-      "expected_answer": "407291836541",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "utr_number",
-      "answer_in_batch": true
+      "expected_answer_contains": ["407291836541"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq11",
       "question": "What was the gross amount before fee deduction for vendor V001 in March 2024?",
-      "expected_answer": "97000",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "gross_amount",
-      "answer_in_batch": true
+      "expected_answer_contains": ["97000"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq12",
       "question": "Which settlement IDs belong to vendor V003?",
-      "expected_answer": "STL-2024-0103",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "settlement_id",
-      "answer_in_batch": true
+      "expected_answer_contains": ["STL-2024-0103"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq13",
       "question": "What is the net settlement amount for STL-2024-0305?",
-      "expected_answer": "61800",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "settlement_amount",
-      "answer_in_batch": true
+      "expected_answer_contains": ["61800"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq14",
       "question": "Were any settlements processed on 2024-02-15 for vendor V005?",
-      "expected_answer": "yes",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "settlement_date",
-      "answer_in_batch": true
+      "expected_answer_contains": ["yes", "2024-02-15"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq15",
       "question": "What is the average fee deduction across all settlements in the batch?",
-      "expected_answer": "2700",
-      "expected_source": "settlement_batch_q1.csv",
-      "expected_field": "fee_deduction",
-      "answer_in_batch": true
+      "expected_answer_contains": ["2700"],
+      "expected_source_file": "settlement_batch_q1.csv",
+      "answerable": true
     },
     {
       "id": "sq16",
       "question": "What is the CEO's salary mentioned in the settlement batch?",
-      "expected_answer": "I don't know",
-      "expected_source": null,
-      "expected_field": null,
-      "answer_in_batch": false,
-      "idk_expected": true
+      "expected_answer_contains": [],
+      "expected_source_file": null,
+      "answerable": false
     },
     {
       "id": "sq17",
       "question": "What is the weather forecast for the settlement processing city?",
-      "expected_answer": "I don't know",
-      "expected_source": null,
-      "expected_field": null,
-      "answer_in_batch": false,
-      "idk_expected": true
+      "expected_answer_contains": [],
+      "expected_source_file": null,
+      "answerable": false
     },
     {
       "id": "sq18",
       "question": "What is the settlement amount for vendor V009 in April 2024?",
-      "expected_answer": "I don't know",
-      "expected_source": null,
-      "expected_field": null,
-      "answer_in_batch": false,
-      "idk_expected": true
+      "expected_answer_contains": [],
+      "expected_source_file": null,
+      "answerable": false
     }
   ]
 }

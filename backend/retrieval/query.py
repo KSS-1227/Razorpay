@@ -115,7 +115,8 @@ class GraphRAGQuery:
         # to callers without a second embedding call.
         return entities_context, sources_context, rels_context, node_datas, similar_nodes
 
-    async def query(self, question: str, param=None, return_context: bool = False):
+    async def query(self, question: str, param=None, return_context: bool = False,
+                     system_prompt_addendum: str | None = None):
         """
         Execute the full GraphRAG query pipeline.
 
@@ -165,6 +166,8 @@ class GraphRAGQuery:
             response_type=param.response_type,
             context_data=context_data,
         )
+        if system_prompt_addendum:
+            sys_prompt = system_prompt_addendum + "\n\n" + sys_prompt
         user_prompt = f"Question: {question}"
         text_answer = await model_if_cache(
             user_prompt, system_prompt=sys_prompt, hashing_kv=self.llm_cache
