@@ -8,6 +8,7 @@ import {
   FolderKanban,
   Home,
   NetworkIcon,
+  Scale,
   Settings,
   Upload,
   UserCircle,
@@ -67,6 +68,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Evidence',
     icon: FileSearch2,
     path: '/app/evidence',
+    section: 'tools',
+  },
+  {
+    id: 'compliance',
+    label: 'Compliance',
+    icon: Scale,
+    path: '/app/compliance',
     section: 'tools',
   },
   {

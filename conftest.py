@@ -70,6 +70,25 @@ def _install_stubs() -> None:
         llm_pkg.__path__ = [str(Path(_BACKEND_DIR) / "llm")]
         llm_pkg.__package__ = "backend.llm"
         llm_pkg.__spec__ = None
+        # Expose every name that backend.llm.__init__ re-exports from client.
+        # These are imported directly by backend.ingestion.image_utils,
+        # backend.graph.fusion, backend.graph.text2graph, etc.
+        # Stubs return the minimal valid fake so callers don't crash on import.
+        async def _noop_llm(*a, **kw):
+            return ""
+        async def _noop_json(*a, **kw):
+            return {}
+        async def _noop_json_list(*a, **kw):
+            return []
+        async def _noop_mm(*a, **kw):
+            return ""
+
+        llm_pkg.get_llm_response       = _noop_llm        # type: ignore[attr-defined]
+        llm_pkg.get_mmllm_response     = _noop_mm         # type: ignore[attr-defined]
+        llm_pkg.model_if_cache         = _noop_llm        # type: ignore[attr-defined]
+        llm_pkg.multimodel_if_cache    = _noop_mm         # type: ignore[attr-defined]
+        llm_pkg.normalize_to_json      = _noop_json       # type: ignore[attr-defined]
+        llm_pkg.normalize_to_json_list = _noop_json_list  # type: ignore[attr-defined]
         sys.modules["backend.llm"] = llm_pkg
 
     # ------------------------------------------------------------------ #
@@ -108,7 +127,27 @@ def _install_stubs() -> None:
         settings.ALLOWED_ORIGINS      = ""
         settings.OPENAI_API_KEY       = ""
         settings.SUPABASE_JWT_SECRET  = ""
+        # Additional settings consumed by backend.graph.text2graph and similar
+        settings.ENTITY_EXTRACT_MAX_GLEANING = 1
+        settings.MAX_TOKENS          = 4096
+        settings.WORKING_DIR         = "/tmp"
         sys.modules["backend.config.settings"] = settings
+
+    # ------------------------------------------------------------------ #
+    # jose  (python-jose — JWT library used by auth middleware)            #
+    # Not installed in this dev environment; stub so auth modules can be   #
+    # imported and then patched in tests without calling real JWT logic.   #
+    # ------------------------------------------------------------------ #
+    if "jose" not in sys.modules:
+        jose_stub = types.ModuleType("jose")
+        # Provide the exception classes and jwt object that jwt_middleware imports
+        jose_stub.JWTError           = Exception
+        jose_stub.ExpiredSignatureError = Exception
+        jwt_stub = types.ModuleType("jose.jwt")
+        jwt_stub.decode = lambda *a, **kw: {}   # type: ignore[attr-defined]
+        jose_stub.jwt   = jwt_stub
+        sys.modules["jose"]     = jose_stub
+        sys.modules["jose.jwt"] = jwt_stub
 
 
 _install_stubs()

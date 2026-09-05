@@ -17,6 +17,7 @@ load_dotenv(override=True)
 
 from backend.api.routes.cases import router as cases_router
 from backend.api.routes.cashflow import router as cashflow_router
+from backend.api.routes.forecast import router as forecast_router
 from backend.api.routes.reconciliation import router as reconciliation_router
 from backend.api.routes.tax_matching import router as tax_matching_router
 from backend.api.routes.storage import router as storage_router
@@ -125,6 +126,11 @@ app.include_router(
 )
 app.include_router(
     cashflow_router,
+    prefix="/api",
+    dependencies=[Depends(get_current_user)],
+)
+app.include_router(
+    forecast_router,
     prefix="/api",
     dependencies=[Depends(get_current_user)],
 )

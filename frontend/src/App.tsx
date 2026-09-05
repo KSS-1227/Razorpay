@@ -34,6 +34,7 @@ import KnowledgeGraphPage from './pages/app/KnowledgeGraphPage.tsx'
 import CasesPage from './pages/app/CasesPage'
 import AIAssistantPage from './pages/app/AIAssistantPage'
 import ReportsPage from './pages/app/ReportsPage'
+import CompliancePage from './pages/app/CompliancePage'
 import EvidencePage from './pages/app/EvidencePage'
 import ProfilePage from './pages/app/ProfilePage'
 import SettingsPage from './pages/app/SettingsPage'
@@ -137,6 +138,7 @@ function AnimatedRoutes() {
             <Route path="ai-assistant"    element={<AIAssistantPage />} />
             <Route path="evidence"        element={<EvidencePage />} />
             <Route path="reports"         element={<ReportsPage />} />
+            <Route path="compliance"      element={<CompliancePage />} />
 
             {/* Account section */}
             <Route path="settings"  element={<SettingsPage />} />

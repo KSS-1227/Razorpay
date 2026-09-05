@@ -61,11 +61,17 @@ def load(path: str) -> dict:
 
 
 def answer_correct(answer: str, expected_contains: list[str]) -> bool:
-    """All expected phrases must appear in the answer (case-insensitive)."""
+    """All expected phrases must appear in the answer (case-insensitive).
+
+    Commas are stripped from both the answer and each expected phrase before
+    comparison so that Indian-formatted amounts like ``₹82,500`` match against
+    a phrase like ``82500``.  Only commas are removed — currency symbols,
+    decimal points, and spaces are preserved.
+    """
     if not expected_contains:
         return True  # answerable=false entries have no expected phrases
-    low = answer.lower()
-    return all(phrase.lower() in low for phrase in expected_contains)
+    low = answer.lower().replace(",", "")
+    return all(phrase.lower().replace(",", "") in low for phrase in expected_contains)
 
 
 def citation_correct(result: dict, expected_source_file: str | None) -> bool:
