@@ -35,7 +35,7 @@ router = APIRouter(
 )
 
 SUPPORTED_EXTENSIONS = {
-    ".pdf", ".docx", ".xlsx", ".xls",
+    ".pdf", ".docx", ".xlsx", ".xls", ".csv",
     ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff",
     ".mp3", ".wav", ".m4a", ".flac", ".ogg",
 }

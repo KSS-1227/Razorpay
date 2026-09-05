@@ -27,6 +27,7 @@ from .graph.fusion import fusion
 from .graph.img2graph import img2graph
 from .graph.text2graph import TextEntityExtractor
 from .ingestion.audio_preprocessing import AudioChunking
+from .ingestion.csv_preprocessing import CSVChunking
 from .ingestion.docx_preprocessing import DocxChunking
 from .ingestion.excel_preprocessing import ExcelChunking
 from .ingestion.image_preprocessing import ImageChunking
@@ -46,10 +47,11 @@ os.environ["CACHE_PATH"] = _cache_path
 _PDF_EXTS   = {".pdf"}
 _DOCX_EXTS  = {".docx"}
 _EXCEL_EXTS = {".xlsx", ".xls"}
+_CSV_EXTS   = {".csv"}
 _AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".ogg"}
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"}
 
-_SUPPORTED_EXTS = _PDF_EXTS | _DOCX_EXTS | _EXCEL_EXTS | _AUDIO_EXTS | _IMAGE_EXTS
+_SUPPORTED_EXTS = _PDF_EXTS | _DOCX_EXTS | _EXCEL_EXTS | _CSV_EXTS | _AUDIO_EXTS | _IMAGE_EXTS
 
 
 def _build_processor(file_path: str, working_dir: str, use_mineru: bool):
@@ -74,6 +76,11 @@ def _build_processor(file_path: str, working_dir: str, use_mineru: bool):
     if ext in _EXCEL_EXTS:
         return ExcelChunking(
             excel_path=file_path,
+            working_dir=working_dir,
+        )
+    if ext in _CSV_EXTS:
+        return CSVChunking(
+            csv_path=file_path,
             working_dir=working_dir,
         )
     if ext in _AUDIO_EXTS:

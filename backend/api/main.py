@@ -21,6 +21,7 @@ from backend.api.routes.storage import router as storage_router
 from backend.api.routes.workspace_graph import router as ws_graph_router
 from backend.api.routes.workspace_query import router as ws_query_router
 from backend.api.routes.workspace_report import router as ws_report_router
+from backend.api.routes.workspace_settlement_qa import router as ws_settlement_qa_router
 
 # Workspace-aware replacements (user-scoped paths — no global data folders)
 from backend.api.routes.workspace_stats import router as ws_stats_router
@@ -95,6 +96,11 @@ app.include_router(ws_upload_router, prefix="/api", dependencies=[Depends(get_cu
 app.include_router(ws_query_router,  prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(ws_graph_router,  prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(ws_stats_router,  prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(
+    ws_settlement_qa_router,
+    prefix="/api",
+    dependencies=[Depends(get_current_user)],
+)
 app.include_router(
     ws_report_router,
     prefix="/api",

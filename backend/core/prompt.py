@@ -22,6 +22,12 @@ Several of the entity types are finance-specific. Extract them as follows:
 - PAYMENT_TERMS: payment conditions stated in a document (e.g. "Net 30", "payment due within 15 days")
 - DUE_DATE: a deadline for payment or delivery (e.g. "15th March 2024")
 - APPROVAL_LIMIT: a threshold requiring approval (e.g. "payments above ₹1,00,000 require CFO sign-off")
+- SETTLEMENT_ID: a unique settlement or payout batch identifier (e.g. "Settlement #STL-2024-1183")
+- SETTLEMENT_DATE: the date a settlement or payout was processed (e.g. "2024-03-15")
+- SETTLEMENT_AMOUNT: the net amount paid out in a settlement (e.g. "₹1,24,500")
+- PAYOUT_STATUS: the state of a payout (e.g. "processed", "on hold", "failed")
+- FEE_DEDUCTION: a platform or processing fee subtracted from a settlement (e.g. "Platform fee: ₹2,500")
+- UTR_NUMBER: a bank Unique Transaction Reference number tied to a payout (e.g. "UTR: 407291836540")
 
 2. From the entities identified in step 1, identify all pairs of (source_entity, target_entity) that are *clearly related* to each other.
 For each pair of related entities, extract the following information:
@@ -141,7 +147,7 @@ PROMPTS[
 ] = """It appears some entities may have still been missed.  Answer YES | NO if there are still entities that need to be added.
 """
 
-PROMPTS["DEFAULT_ENTITY_TYPES"] = ["VENDOR", "INVOICE", "INVOICE_AMOUNT", "CONTRACT_AMOUNT", "PAYMENT_TERMS", "DUE_DATE", "APPROVAL_LIMIT", "ORGANIZATION", "PERSON", "LOCATION", "EVENT", "CATEGORY"]
+PROMPTS["DEFAULT_ENTITY_TYPES"] = ["VENDOR", "INVOICE", "INVOICE_AMOUNT", "CONTRACT_AMOUNT", "PAYMENT_TERMS", "DUE_DATE", "APPROVAL_LIMIT", "SETTLEMENT_ID", "SETTLEMENT_DATE", "SETTLEMENT_AMOUNT", "PAYOUT_STATUS", "FEE_DEDUCTION", "UTR_NUMBER", "ORGANIZATION", "PERSON", "LOCATION", "EVENT", "CATEGORY"]
 PROMPTS["DEFAULT_TUPLE_DELIMITER"] = "<|>"
 PROMPTS["DEFAULT_RECORD_DELIMITER"] = "##"
 PROMPTS["DEFAULT_COMPLETION_DELIMITER"] = "<|COMPLETE|>"
