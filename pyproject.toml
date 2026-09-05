@@ -1,0 +1,45 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "RUF",  # ruff-specific
+    "PERF", # perflint
+    "FURB", # refurb
+    "DTZ",  # datetime timezone
+    "PLW",  # pylint warnings
+]
+ignore = [
+    "B008",    # FastAPI Depends() in function signatures — idiomatic
+    "BLE001",  # Broad Exception — intentional in service/audit helpers
+    "ASYNC230", # blocking open() in async — known tech debt
+    "ASYNC221", # blocking subprocess in async — known tech debt
+    "PYI059",  # Generic[] base class ordering — cosmetic
+    "PLW0603", # global statement — intentional for module singletons
+    "RUF002",  # EN DASH in docstrings — existing content, not a bug
+    "RUF001",  # ambiguous unicode in prompt strings — intentional Chinese text
+    "F403",    # star imports in __init__.py — existing pattern
+    "E402",    # module-level import not at top — intentional (load_dotenv first)
+    "UP042",   # str+enum — intentional pattern
+]
+
+[tool.ruff.lint.per-file-ignores]
+# LLM prompt templates — cannot line-wrap prompt strings
+"backend/core/prompt.py" = ["E501", "W291"]
+# Pipeline files with long algorithm/matrix operation lines
+"backend/graph/fusion.py"      = ["E501"]
+"backend/graph/img2graph.py"   = ["E501"]
+"backend/retrieval/query.py"   = ["E501"]
+"backend/storage/graph_storage.py" = ["E501"]
+"backend/ingestion/pdf_preprocessing.py" = ["E501"]
+"backend/config/settings.py"  = ["E501"]
+# Migration test files use conditional imports
+"backend/auth/migrations/*.py" = ["E402"]

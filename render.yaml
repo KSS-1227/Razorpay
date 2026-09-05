@@ -1,0 +1,55 @@
+services:
+  - type: web_service
+    name: innova-backend
+    env: docker
+    plan: starter
+    dockerfilePath: Dockerfile
+    disk:
+      name: innova-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: LLM_API_KEY
+        sync: false
+      - key: MM_API_KEY
+        sync: false
+      - key: MM_API_BASE
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: COCKROACH_DATABASE_URL
+        sync: false
+      - key: DOCUMENT_STORAGE_BACKEND
+        value: "local"
+      - key: AWS_REGION
+        sync: false
+      - key: S3_DOCUMENT_BUCKET
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: USE_MINERU
+        value: "false"
+        sync: false
+      - key: WORKING_DIR
+        value: "/data/working"
+        sync: false
+      - key: CACHE_PATH
+        value: "/data/cache"
+        sync: false
+      - key: OUTPUT_DIR
+        value: "/data/output"
+        sync: false
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.api.main:app --host 0.0.0.0 --port $PORT --workers 1

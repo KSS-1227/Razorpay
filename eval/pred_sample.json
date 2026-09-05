@@ -1,0 +1,20 @@
+{
+  "documents": [
+    {
+      "doc_id": "doc1",
+      "content": "Acme Corp operates in the energy sector and uses the X100 device.",
+      "entities": [
+        {"entity_name": "ACME CORP", "entity_type": "ORGANIZATION"},
+        {"entity_name": "X100", "entity_type": "TECHNOLOGY"},
+        {"entity_name": "GHOST_ENTITY", "entity_type": "UNKNOWN"}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "query": "Which company uses the X100 device?",
+      "retrieval": ["ACME CORP"],
+      "citations": [{"doc_id": "doc1", "span": "Acme Corp operates in the energy sector and uses the X100 device."}]
+    }
+  ]
+}

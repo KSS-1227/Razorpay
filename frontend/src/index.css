@@ -1,0 +1,142 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+@import "tailwindcss";
+
+/* ── Tailwind v4 Theme Configuration ── */
+@theme {
+  /* Color palette */
+  --color-background: #090a0f;
+  --color-foreground: #f8fafc;
+
+  /* Font */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Indigo / primary */
+  --color-primary: #6366f1;
+  --color-primary-hover: #4f46e5;
+  --color-primary-glow: rgba(99, 102, 241, 0.35);
+
+  /* Accents */
+  --color-accent-cyan: #06b6d4;
+  --color-accent-purple: #a855f7;
+  --color-accent-pink: #ec4899;
+
+  /* Glass shadows */
+  --shadow-glass-sm: 0 4px 20px -2px rgba(0,0,0,0.5), inset 0 1px 1px 0 rgba(255,255,255,0.1);
+  --shadow-glass-md: 0 8px 32px 0 rgba(0,0,0,0.6), inset 0 1px 1px 0 rgba(255,255,255,0.12);
+  --shadow-glass-lg: 0 12px 40px 0 rgba(0,0,0,0.7), inset 0 1px 1px 0 rgba(255,255,255,0.15);
+  --shadow-primary-glow: 0 0 25px -5px rgba(99,102,241,0.5);
+
+  /* Custom keyframe animations */
+  --animate-pulse-glow: pulseGlow 5s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.8s ease-in-out infinite;
+  --animate-float-slow: floatSlow 8s ease-in-out infinite;
+
+  @keyframes pulseGlow {
+    0%, 100% { opacity: 0.35; transform: scale(1); }
+    50%       { opacity: 0.75; transform: scale(1.05); }
+  }
+
+  @keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  @keyframes floatSlow {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-12px); }
+  }
+}
+
+/* ── Base layer ── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    background-color: #090a0f;
+    color: #f8fafc;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Remove default margins */
+  h1, h2, h3, h4, h5, h6, p { margin: 0; }
+  ul, li { list-style: none; margin: 0; padding: 0; }
+  a { color: inherit; text-decoration: none; }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #090a0f; }
+  ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #334155; }
+}
+
+/* ── Component layer — reusable custom classes ── */
+@layer components {
+
+  /* Glassmorphism panel */
+  .glass-panel {
+    background: rgba(15, 17, 26, 0.68);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 12px 40px 0 rgba(0,0,0,0.7), inset 0 1px 1px 0 rgba(255,255,255,0.12);
+  }
+
+  /* Glassmorphism input field */
+  .glass-input {
+    background: rgba(10, 12, 18, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #f8fafc;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  }
+
+  .glass-input::placeholder {
+    color: rgba(148, 163, 184, 0.5);
+  }
+
+  .glass-input:focus {
+    background: rgba(15, 18, 28, 0.92);
+    border-color: rgba(99, 102, 241, 0.85);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2), 0 0 20px rgba(99, 102, 241, 0.12);
+    outline: none;
+  }
+
+  .glass-input[aria-invalid="true"],
+  .glass-input.error {
+    border-color: rgba(239, 68, 68, 0.65);
+  }
+
+  /* Shimmer loading effect */
+  .shimmer-effect {
+    background: linear-gradient(
+      90deg,
+      rgba(255,255,255,0.03) 0%,
+      rgba(255,255,255,0.09) 50%,
+      rgba(255,255,255,0.03) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.8s ease-in-out infinite;
+  }
+
+  /* Gradient text utility */
+  .gradient-text {
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Hide scrollbar cross-browser */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
