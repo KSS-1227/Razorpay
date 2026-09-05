@@ -70,9 +70,33 @@ async def _with_retry(coro_fn, max_retries: int = 6, base_delay: float = 10.0):
 # Embedding
 # ============================================================================
 
+_embedding_attrs_cached = None
+
+def _get_embedding_attrs():
+    """Lazy-load embedding model metadata only when first needed."""
+    global _embedding_attrs_cached
+    if _embedding_attrs_cached is None:
+        model = get_embed_model()
+        _embedding_attrs_cached = {
+            "embedding_dim": model.get_sentence_embedding_dimension(),
+            "max_token_size": model.max_seq_length,
+        }
+    return _embedding_attrs_cached
+
+
+def _embedding_dim() -> int:
+    return _get_embedding_attrs()["embedding_dim"]
+
+
+def _max_token_size() -> int:
+    return _get_embedding_attrs()["max_token_size"]
+
+
+# Pass the getters (not their results) so the embedding model is not loaded at
+# import time — EmbeddingFunc resolves and caches these on first attribute access.
 @wrap_embedding_func_with_attrs(
-    embedding_dim=get_embed_model().get_sentence_embedding_dimension(),
-    max_token_size=get_embed_model().max_seq_length,
+    embedding_dim=_embedding_dim,
+    max_token_size=_max_token_size,
 )
 async def local_embedding(texts: list[str]) -> np.ndarray:
     return get_embed_model().encode(texts)

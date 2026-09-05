@@ -4,14 +4,18 @@ Runtime configuration for the Enterprise Compliance Intelligence Platform.
 """
 import logging
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-# Load .env BEFORE any os.environ.get() calls so env vars are available
-# regardless of import order (uvicorn reloader imports config before main.py).
-load_dotenv()
+# Load the real .env before reading settings. The repository supports both a
+# root .env and the existing backend/.env, but never loads .env.example.
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+for _env_path in (_PROJECT_ROOT / ".env", _PROJECT_ROOT / "backend" / ".env"):
+    if _env_path.is_file():
+        load_dotenv(dotenv_path=_env_path, override=False)
 
 # ============ LLM Configuration ============
 # One server-side OpenAI API key powers text, vision, and transcription.
@@ -19,15 +23,25 @@ load_dotenv()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") or os.environ.get("LLM_API_KEY", "")
 
 # Text LLM — entity extraction, relation building, RAG answers
+# Default: gpt-4o-mini (fast, cheap, sufficient for structured text extraction)
 API_KEY    = OPENAI_API_KEY
 API_BASE   = os.environ.get("LLM_API_BASE",   "https://api.openai.com/v1")
-MODEL_NAME = os.environ.get("LLM_MODEL_NAME") or os.environ.get("OPENAI_MODEL", "gpt-4o")
+MODEL_NAME = (
+    os.environ.get("LLM_MODEL_NAME")
+    or os.environ.get("OPENAI_TEXT_MODEL")
+    or os.environ.get("OPENAI_MODEL")
+    or "gpt-4o-mini"
+)
 
 # Multimodal LLM — image understanding, visual entity extraction, scene graphs
-# Uses the same OpenAI key and endpoint; gpt-4o supports vision natively.
+# Default: gpt-4o (vision-capable; gpt-4o-mini does not support image input)
 MM_API_KEY    = os.environ.get("MM_API_KEY") or OPENAI_API_KEY
 MM_API_BASE   = os.environ.get("MM_API_BASE",   "https://api.openai.com/v1")
-MM_MODEL_NAME = os.environ.get("MM_MODEL_NAME") or os.environ.get("OPENAI_MODEL", "gpt-4o")
+MM_MODEL_NAME = (
+    os.environ.get("MM_MODEL_NAME")
+    or os.environ.get("OPENAI_VISION_MODEL")
+    or "gpt-4o"
+)
 
 # ============ Embedding Model ============
 _default_embed_dir = (

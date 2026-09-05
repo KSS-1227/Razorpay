@@ -83,7 +83,7 @@ An end-to-end platform that transforms heterogeneous enterprise documents — PD
 
 ### Backend
 - **Framework**: Python 3.11+, FastAPI (ASGI), Uvicorn, Flask (standalone visualization)
-- **AI / LLM / MLLM**: OpenAI API (`gpt-4o` for text, vision, and Whisper audio transcription)
+- **AI / LLM / MLLM**: OpenAI API (`gpt-4o-mini` for text, `gpt-4o` for vision, and Whisper audio transcription)
 - **Embeddings**: `sentence-transformers` (`all-MiniLM-L6-v2`), PyTorch, HuggingFace
 - **Image & Vision**: Pillow (`PIL`) for image loading, resizing, and base64 encoding; OpenAI `gpt-4o` Vision for visual entity & scene graph extraction *(Note: YOLOv8 and OpenCV were used in legacy research code under `src/` but have been replaced by direct GPT-4o vision prompting in `backend/`)*
 - **Graph & Math**: NetworkX, Tiktoken, scikit-learn, NumPy
@@ -227,7 +227,8 @@ cp .env.example .env
 |----------|----------|---------|-------------|
 | `OPENAI_API_KEY` | **Yes** | — | OpenAI API key for text LLM, vision, and Whisper transcription |
 | `COCKROACH_DATABASE_URL` | **Yes** | — | CockroachDB Cloud TLS URL for persistent graph, vector, and session memory |
-| `OPENAI_MODEL` | No | `gpt-4o` | Primary OpenAI model |
+| `OPENAI_TEXT_MODEL` | No | `gpt-4o-mini` | Text extraction and RAG model |
+| `OPENAI_VISION_MODEL` | No | `gpt-4o` | Image and vision model |
 | `LLM_API_BASE` | No | `https://api.openai.com/v1` | OpenAI API endpoint base |
 | `MM_API_KEY` | No | `${OPENAI_API_KEY}` | Vision LLM API key override |
 | `MM_MODEL_NAME` | No | `gpt-4o` | Vision model override |

@@ -11,7 +11,7 @@ Do NOT import `settings` (a QueryParam class) — use flat config vars instead.
 import networkx as nx
 from fastapi import APIRouter, HTTPException
 
-from backend.config import MMKG_NAME, OUTPUT_DIR
+from backend.config.settings import MMKG_NAME, OUTPUT_DIR
 
 router = APIRouter(
     prefix="/graph",

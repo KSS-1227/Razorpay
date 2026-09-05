@@ -7,10 +7,9 @@ import json
 import logging
 import os
 import re
-from dataclasses import dataclass
 from functools import wraps
 from hashlib import md5
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import tiktoken
@@ -27,11 +26,40 @@ _ENCODER = None
 # Embedding wrapper
 # ============================================================================
 
-@dataclass
 class EmbeddingFunc:
-    embedding_dim: int
-    max_token_size: int
-    func: callable
+    """Wraps an async embedding function with its output dimensions.
+
+    ``embedding_dim`` and ``max_token_size`` accept either an ``int`` or a
+    zero-arg callable returning an ``int``. Callables are resolved on first
+    access and cached, which lets callers defer loading a heavy embedding
+    model until the attribute is actually needed instead of at import time.
+    """
+
+    def __init__(
+        self,
+        embedding_dim: "int | Callable[[], int]",
+        max_token_size: "int | Callable[[], int]",
+        func: Callable,
+    ):
+        self._embedding_dim_raw = embedding_dim
+        self._max_token_size_raw = max_token_size
+        self.func = func
+        self._embedding_dim_cache: int | None = None
+        self._max_token_size_cache: int | None = None
+
+    @property
+    def embedding_dim(self) -> int:
+        if self._embedding_dim_cache is None:
+            raw = self._embedding_dim_raw
+            self._embedding_dim_cache = raw() if callable(raw) else raw
+        return self._embedding_dim_cache
+
+    @property
+    def max_token_size(self) -> int:
+        if self._max_token_size_cache is None:
+            raw = self._max_token_size_raw
+            self._max_token_size_cache = raw() if callable(raw) else raw
+        return self._max_token_size_cache
 
     async def __call__(self, *args, **kwargs) -> np.ndarray:
         return await self.func(*args, **kwargs)

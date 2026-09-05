@@ -6,14 +6,9 @@ Hackathon Prototype
 """
 
 import logging
-import os
 
-from dotenv import load_dotenv
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-# Load environment variables (override=True ensures .env always wins over stale shell env vars)
-load_dotenv(override=True)
 
 from backend.api.routes.cases import router as cases_router
 from backend.api.routes.cashflow import router as cashflow_router
