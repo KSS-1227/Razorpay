@@ -4,8 +4,9 @@ Unit tests for backend/compliance/reconciliation_engine.py
 Covers:
 - Multi-vendor workspace with different per-vendor approval limits
 - Structuring detection (3 invoices, same vendor/week, individually under limit, sum over)
+- Undated invoices must never trigger a false structuring flag
 - Ambiguity when a vendor has two CONTRACT_AMOUNT nodes
-- Payment timeliness with and without a resolvable DUE_DATE
+- payment_timeliness must not appear in result rows
 """
 from __future__ import annotations
 
@@ -45,6 +46,21 @@ from backend.compliance.reconciliation_engine import (
     _parse_amount,
     _parse_date,
 )
+
+
+# ---------------------------------------------------------------------------
+# Shared adjacency builder
+# ---------------------------------------------------------------------------
+
+def _simple_graph(inv_desc: str):
+    """One invoice, one vendor, one contract — no approval limit."""
+    nodes = {
+        "inv1": _node("INVOICE", inv_desc),
+        "v1":   _node("VENDOR", "V"),
+        "c1":   _node("CONTRACT_AMOUNT", "\u20b9200000"),
+    }
+    adj = {"inv1": {"v1"}, "v1": {"inv1", "c1"}, "c1": {"v1"}}
+    return nodes, adj
 
 
 # ---------------------------------------------------------------------------
@@ -210,64 +226,52 @@ class TestAmbiguousContract:
 
 
 # ---------------------------------------------------------------------------
-# 4. Payment timeliness
+# 4. Undated invoices must not trigger false structuring
 # ---------------------------------------------------------------------------
 
-class TestPaymentTimeliness:
-    def _build_with_due_date(self, invoice_date: str, due_date: str):
+class TestUndatedInvoicesNoStructuring:
+    """3 invoices with no parseable date, same vendor, sum over limit.
+    Each must land in its own singleton group, so structuring must NOT fire.
+    """
+
+    def _build(self):
+        # limit = 100000; each invoice = 40000; sum = 120000 > limit
+        # BUT none have a date, so they must not be grouped.
         nodes = {
-            "inv1": _node("INVOICE", f"\u20b950000 {invoice_date}"),
+            "inv1": _node("INVOICE", "\u20b940000 INV-001"),
+            "inv2": _node("INVOICE", "\u20b940000 INV-002"),
+            "inv3": _node("INVOICE", "\u20b940000 INV-003"),
             "v1":   _node("VENDOR", "Vendor A"),
             "c1":   _node("CONTRACT_AMOUNT", "\u20b9200000"),
-            "dd1":  _node("DUE_DATE", due_date),
+            "al1":  _node("APPROVAL_LIMIT", "\u20b9100000"),
         }
         adjacency = {
-            "inv1": {"v1", "dd1"},
-            "v1": {"inv1", "c1"},
-            "c1": {"v1"},
-            "dd1": {"inv1"},
+            "inv1": {"v1"}, "inv2": {"v1"}, "inv3": {"v1"},
+            "v1": {"inv1", "inv2", "inv3", "c1", "al1"},
+            "c1": {"v1"}, "al1": {"v1"},
         }
         return nodes, adjacency
 
-    def test_on_time(self):
+    def _run_reconcile(self, nodes, adjacency):
         eng = _make_engine()
-        nodes, adjacency = self._build_with_due_date("2024-03-10", "2024-03-15")
-        row = eng._reconcile_one("inv1", nodes["inv1"], nodes, adjacency, {})
-        assert row["payment_timeliness"] == "on_time"
+        eng._load_nodes = AsyncMock(return_value=nodes)
+        eng._load_adjacency = AsyncMock(return_value=adjacency)
+        eng._load_text_chunks = MagicMock(return_value={})
+        return _run(eng.reconcile())
 
-    def test_overdue(self):
-        eng = _make_engine()
-        nodes, adjacency = self._build_with_due_date("2024-03-20", "2024-03-15")
-        row = eng._reconcile_one("inv1", nodes["inv1"], nodes, adjacency, {})
-        assert row["payment_timeliness"] == "overdue"
+    def test_no_structuring_flag_for_undated_invoices(self):
+        nodes, adjacency = self._build()
+        summary = self._run_reconcile(nodes, adjacency)
+        assert summary["structuring_groups"] == 0
+        flagged = [r for r in summary["results"] if "possible_structuring" in r["flags"]]
+        assert flagged == []
 
-    def test_unknown_when_no_due_date_node(self):
-        eng = _make_engine()
-        nodes = {
-            "inv1": _node("INVOICE", "\u20b950000 2024-03-10"),
-            "v1":   _node("VENDOR", "Vendor A"),
-            "c1":   _node("CONTRACT_AMOUNT", "\u20b9200000"),
-        }
-        adjacency = {
-            "inv1": {"v1"}, "v1": {"inv1", "c1"}, "c1": {"v1"},
-        }
-        row = eng._reconcile_one("inv1", nodes["inv1"], nodes, adjacency, {})
-        assert row["payment_timeliness"] == "unknown"
-
-    def test_unknown_when_due_date_unparseable(self):
-        eng = _make_engine()
-        nodes = {
-            "inv1": _node("INVOICE", "\u20b950000 2024-03-10"),
-            "v1":   _node("VENDOR", "Vendor A"),
-            "c1":   _node("CONTRACT_AMOUNT", "\u20b9200000"),
-            "dd1":  _node("DUE_DATE", "no date here"),
-        }
-        adjacency = {
-            "inv1": {"v1", "dd1"}, "v1": {"inv1", "c1"},
-            "c1": {"v1"}, "dd1": {"inv1"},
-        }
-        row = eng._reconcile_one("inv1", nodes["inv1"], nodes, adjacency, {})
-        assert row["payment_timeliness"] == "unknown"
+    def test_payment_timeliness_absent_from_rows(self):
+        """payment_timeliness must not appear in any result row."""
+        nodes, adjacency = self._build()
+        summary = self._run_reconcile(nodes, adjacency)
+        for row in summary["results"]:
+            assert "payment_timeliness" not in row
 
 
 # ---------------------------------------------------------------------------

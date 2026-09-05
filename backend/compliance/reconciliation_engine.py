@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 
 # Reuse the shared async pool — do NOT open a second connection to CockroachDB.
@@ -275,7 +275,7 @@ class ReconciliationEngine:
                             f"contract limit {_fmt(contract_amount)}"
                         )
 
-        # Per-vendor approval limit (fix 1): resolve through this invoice's own vendor.
+        # Per-vendor approval limit: resolve through this invoice's own vendor.
         approval_threshold: float | None = None
         if vendor_id is not None:
             approval_id, _ = self._find_neighbor_of_type(
@@ -290,18 +290,6 @@ class ReconciliationEngine:
             and invoice_amount > approval_threshold
         )
 
-        # Payment timeliness (fix 4): compare DUE_DATE neighbor to invoice date.
-        payment_timeliness = "unknown"
-        if invoice_amount is not None and vendor_id is not None:
-            due_date_id, _ = self._find_neighbor_of_type(
-                invoice_id, "DUE_DATE", nodes, adjacency
-            )
-            if due_date_id is not None:
-                due = _parse_date(nodes[due_date_id].get("description"))
-                invoice_date = _parse_date(invoice.get("description"))
-                if due is not None and invoice_date is not None:
-                    payment_timeliness = "on_time" if invoice_date <= due else "overdue"
-
         return {
             "invoice_id": invoice_id,
             "vendor_id": vendor_id,
@@ -310,7 +298,6 @@ class ReconciliationEngine:
             "invoice_amount": invoice_amount,
             "contract_amount": contract_amount,
             "requires_approval": requires_approval,
-            "payment_timeliness": payment_timeliness,
             "flags": [],
             "source_files": self._source_files(invoice, text_chunks),
         }
@@ -352,7 +339,13 @@ class ReconciliationEngine:
                 continue
             inv_node = invoices.get(row["invoice_id"])
             inv_date = _parse_date(inv_node.get("description") if inv_node else None)
-            week_key = _iso_week(inv_date) if inv_date else None
+            if inv_date is not None:
+                week_key: object = _iso_week(inv_date)
+            else:
+                # Undated invoices must never be grouped together — each gets its
+                # own singleton key so unrelated invoices cannot trigger a false
+                # structuring flag.
+                week_key = ("undated", row["invoice_id"])
             groups[(vid, week_key)].append(row)
 
         structuring_groups = 0
