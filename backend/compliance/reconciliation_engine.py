@@ -16,7 +16,7 @@ Design notes
   the existing async connection pool from ``backend.cockroach_graph_storage``.
 - ``source_files`` are resolved from the local ``kv_store_text_chunks.json`` KV
   store in the workspace ``working`` directory (same store the pipeline writes).
-- The rupee symbol is written as ``\\u20b9`` throughout so this file stays pure
+- The rupee symbol is written as ``\u20b9`` throughout so this file stays pure
   ASCII on disk (avoids a cp1252 decode error when the file is read back with a
   plain ``open().read()`` on Windows).
 
@@ -30,22 +30,29 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 # Reuse the shared async pool — do NOT open a second connection to CockroachDB.
 from backend.cockroach_graph_storage import _get_pool
 
 # Matches an optional currency symbol (rupee / dollar) followed by an
-# Indian- or Western-formatted number, e.g. "₹80,000", "$5,200", "1,00,000".
-# The rupee symbol is injected via a non-raw literal ('₹') concatenated
-# with the raw parts, because raw strings do not process \u escapes.
-_AMOUNT_RE = re.compile(r'[' '₹' r'\$]?\s*[\d,]+(?:\.\d+)?')
+# Indian- or Western-formatted number, e.g. "\u20b980,000", "$5,200", "1,00,000".
+# The rupee symbol is written as \u20b9 (see module docstring).
+_AMOUNT_RE = re.compile(r'[' '\u20b9' r'\$]?\s*[\d,]+(?:\.\d+)?')
 
 # Multi-value separator used across the graph pipeline (see backend/core/prompt.py).
 _SEP = "<SEP>"
 
 _INVOICE_TYPES = {"INVOICE", "INVOICE_AMOUNT"}
 _CONTRACT_TYPES = {"CONTRACT_AMOUNT", "PAYMENT_TERMS"}
+
+# ISO date patterns found in node descriptions, e.g. "2024-03-15" or "15/03/2024".
+_DATE_RE = re.compile(
+    r'\b(\d{4}-\d{2}-\d{2})\b'          # YYYY-MM-DD
+    r'|'
+    r'\b(\d{2}/\d{2}/\d{4})\b'          # DD/MM/YYYY
+)
 
 
 def _norm_type(entity_type: str | None) -> str:
@@ -77,11 +84,32 @@ def _parse_amount(description: str | None) -> float | None:
             value = float(cleaned)
         except ValueError:
             continue
-        if "₹" in token or "$" in token:
+        if "\u20b9" in token or "$" in token:
             return value  # a currency-tagged amount wins outright
         if fallback is None:
             fallback = value  # remember the first bare number as a fallback
     return fallback
+
+
+def _parse_date(description: str | None) -> date | None:
+    """Extract the first parseable date from a node description. Returns None if none found."""
+    if not description:
+        return None
+    for m in _DATE_RE.finditer(description):
+        iso, dmy = m.group(1), m.group(2)
+        try:
+            if iso:
+                return datetime.strptime(iso, "%Y-%m-%d").date()
+            if dmy:
+                return datetime.strptime(dmy, "%d/%m/%Y").date()
+        except ValueError:
+            continue
+    return None
+
+
+def _iso_week(d: date) -> tuple[int, int]:
+    """Return (ISO year, ISO week number) for a date."""
+    return d.isocalendar()[:2]
 
 
 def _fmt(amount: float) -> str:
@@ -182,13 +210,27 @@ class ReconciliationEngine:
         wanted_type: str,
         nodes: dict,
         adjacency: dict[str, set[str]],
-    ) -> str | None:
-        """Return a neighbor of ``node_id`` whose normalized entity_type == wanted_type."""
-        for neighbor_id in adjacency.get(node_id, ()):  # deterministic-enough for a set
-            neighbor = nodes.get(neighbor_id)
-            if neighbor and _norm_type(neighbor.get("entity_type")) == wanted_type:
-                return neighbor_id
-        return None
+    ) -> tuple[str | None, str | None]:
+        """Return ``(neighbor_id, ambiguity_reason)`` for the first neighbor whose
+        normalized entity_type == wanted_type.
+
+        When multiple matches exist, candidates are sorted lexicographically by
+        node_id for reproducibility; the first is returned and ``ambiguity_reason``
+        is set to a human-readable note. Returns ``(None, None)`` when no match.
+        """
+        candidates = sorted(
+            nid for nid in adjacency.get(node_id, ())
+            if nodes.get(nid) and _norm_type(nodes[nid].get("entity_type")) == wanted_type
+        )
+        if not candidates:
+            return None, None
+        chosen = candidates[0]
+        ambiguity = (
+            f"Multiple {wanted_type} nodes found for vendor — used {chosen}"
+            if len(candidates) > 1
+            else None
+        )
+        return chosen, ambiguity
 
     def _reconcile_one(
         self,
@@ -196,7 +238,6 @@ class ReconciliationEngine:
         invoice: dict,
         nodes: dict,
         adjacency: dict[str, set[str]],
-        approval_threshold: float | None,
         text_chunks: dict,
     ) -> dict:
         """Reconcile a single invoice node into a result row."""
@@ -204,20 +245,23 @@ class ReconciliationEngine:
         contract_amount: float | None = None
         status: str
         reason: str | None = None
+        vendor_id: str | None = None
 
         if invoice_amount is None:
             status, reason = "unresolved", "Could not parse amount from document"
         else:
-            vendor_id = self._find_neighbor_of_type(invoice_id, "VENDOR", nodes, adjacency)
+            vendor_id, _ = self._find_neighbor_of_type(invoice_id, "VENDOR", nodes, adjacency)
             if vendor_id is None:
                 status, reason = "unresolved", "Invoice not linked to any vendor"
             else:
-                contract_id = self._find_neighbor_of_type(
+                contract_id, ambiguity = self._find_neighbor_of_type(
                     vendor_id, "CONTRACT_AMOUNT", nodes, adjacency
                 )
                 if contract_id is None:
                     status, reason = "unresolved", "No matching vendor contract found"
                 else:
+                    if ambiguity:
+                        reason = ambiguity
                     contract_amount = _parse_amount(nodes[contract_id].get("description"))
                     if contract_amount is None:
                         status = "unresolved"
@@ -231,20 +275,43 @@ class ReconciliationEngine:
                             f"contract limit {_fmt(contract_amount)}"
                         )
 
-        # Approval-limit flag is independent of match status.
+        # Per-vendor approval limit (fix 1): resolve through this invoice's own vendor.
+        approval_threshold: float | None = None
+        if vendor_id is not None:
+            approval_id, _ = self._find_neighbor_of_type(
+                vendor_id, "APPROVAL_LIMIT", nodes, adjacency
+            )
+            if approval_id is not None:
+                approval_threshold = _parse_amount(nodes[approval_id].get("description"))
+
         requires_approval = (
             invoice_amount is not None
             and approval_threshold is not None
             and invoice_amount > approval_threshold
         )
 
+        # Payment timeliness (fix 4): compare DUE_DATE neighbor to invoice date.
+        payment_timeliness = "unknown"
+        if invoice_amount is not None and vendor_id is not None:
+            due_date_id, _ = self._find_neighbor_of_type(
+                invoice_id, "DUE_DATE", nodes, adjacency
+            )
+            if due_date_id is not None:
+                due = _parse_date(nodes[due_date_id].get("description"))
+                invoice_date = _parse_date(invoice.get("description"))
+                if due is not None and invoice_date is not None:
+                    payment_timeliness = "on_time" if invoice_date <= due else "overdue"
+
         return {
             "invoice_id": invoice_id,
+            "vendor_id": vendor_id,
             "status": status,
             "reason": reason,
             "invoice_amount": invoice_amount,
             "contract_amount": contract_amount,
             "requires_approval": requires_approval,
+            "payment_timeliness": payment_timeliness,
+            "flags": [],
             "source_files": self._source_files(invoice, text_chunks),
         }
 
@@ -264,29 +331,47 @@ class ReconciliationEngine:
             nid: nd for nid, nd in nodes.items()
             if _norm_type(nd.get("entity_type")) in _CONTRACT_TYPES
         }
-        approval_limits = {
-            nid: nd for nid, nd in nodes.items()
-            if _norm_type(nd.get("entity_type")) == "APPROVAL_LIMIT"
-        }
-
-        # Most conservative approval threshold across all APPROVAL_LIMIT nodes.
-        approval_threshold: float | None = None
-        for node in approval_limits.values():
-            amount = _parse_amount(node.get("description"))
-            if amount is not None:
-                approval_threshold = (
-                    amount if approval_threshold is None
-                    else min(approval_threshold, amount)
-                )
 
         results: list[dict] = []
         counts = {"matched": 0, "exception": 0, "unresolved": 0}
         for invoice_id, invoice in invoices.items():
             row = self._reconcile_one(
-                invoice_id, invoice, nodes, adjacency, approval_threshold, text_chunks
+                invoice_id, invoice, nodes, adjacency, text_chunks
             )
             results.append(row)
             counts[row["status"]] = counts.get(row["status"], 0) + 1
+
+        # Second pass: structuring check (fix 2).
+        # Group by (vendor_id, calendar week of invoice date if parseable).
+        # Key: (vendor_id, week_key) where week_key is an ISO (year, week) tuple or None.
+        from collections import defaultdict
+        groups: dict[tuple, list[dict]] = defaultdict(list)
+        for row in results:
+            vid = row.get("vendor_id")
+            if vid is None or row["invoice_amount"] is None:
+                continue
+            inv_node = invoices.get(row["invoice_id"])
+            inv_date = _parse_date(inv_node.get("description") if inv_node else None)
+            week_key = _iso_week(inv_date) if inv_date else None
+            groups[(vid, week_key)].append(row)
+
+        structuring_groups = 0
+        for (vid, _week), group_rows in groups.items():
+            # Resolve this vendor's approval limit once per group.
+            approval_id, _ = self._find_neighbor_of_type(
+                vid, "APPROVAL_LIMIT", nodes, adjacency
+            )
+            if approval_id is None:
+                continue
+            limit = _parse_amount(nodes[approval_id].get("description"))
+            if limit is None:
+                continue
+            group_sum = sum(r["invoice_amount"] for r in group_rows)
+            # All individual invoices must be under the limit for structuring to apply.
+            if group_sum > limit and all(r["invoice_amount"] <= limit for r in group_rows):
+                structuring_groups += 1
+                for r in group_rows:
+                    r["flags"].append("possible_structuring")
 
         total = len(invoices)
         match_rate = f"{round((counts['matched'] / total) * 100)}%" if total else "0%"
@@ -297,5 +382,6 @@ class ReconciliationEngine:
             "exceptions": counts["exception"],
             "unresolved": counts["unresolved"],
             "match_rate": match_rate,
+            "structuring_groups": structuring_groups,
             "results": results,
         }
