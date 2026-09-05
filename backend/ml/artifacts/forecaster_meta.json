@@ -1,0 +1,14 @@
+{
+  "training_date": "2026-09-05T06:32:58.694855+00:00",
+  "horizon_days": 7,
+  "n_training_rows": 32,
+  "n_test_rows": 8,
+  "mae": 2074.1409,
+  "calibration_pct": 0.0,
+  "low_data_warning": false,
+  "model_paths": {
+    "p10": "artifacts\\forecaster_p10.joblib",
+    "p50": "artifacts\\forecaster_p50.joblib",
+    "p90": "artifacts\\forecaster_p90.joblib"
+  }
+}
